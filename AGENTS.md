@@ -407,6 +407,12 @@ the add-on adds the two check pages.
 
 ## Packages and versioning
 
+The four packages form one dependency chain:
+`luci-app-trusttunnel-diagnostics` (optional) → `luci-app-trusttunnel` →
+`trusttunnel` → `trusttunnel-client`. The app carries the UI, the runtime
+carries the service, and the client package holds the vendor binaries.
+Each section below records the exact DEPENDS of its package.
+
 ### `trusttunnel/Makefile`
 
 - The runtime package holds the service, the routing, the records

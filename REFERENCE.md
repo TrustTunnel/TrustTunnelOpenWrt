@@ -1,7 +1,44 @@
 # Reference
 
-The LuCI pages, every setting and the files the package touches. To
-configure the tunnel, see [CONFIGURATION.md](CONFIGURATION.md).
+The installed packages, the LuCI pages, every setting and the files the
+package touches. To configure the tunnel, see [CONFIGURATION.md](CONFIGURATION.md).
+
+---
+
+## Packages
+
+The project ships four packages. Three of them are mandatory, and one is
+optional. The mandatory packages form one dependency chain:
+
+```text
+luci-app-trusttunnel-diagnostics  (optional)
+  └── luci-app-trusttunnel
+        └── trusttunnel
+              └── trusttunnel-client
+```
+
+| Package | Required | Contents |
+| --- | --- | --- |
+| `luci-app-trusttunnel` | yes | the LuCI pages (Status, Settings, Client log and Versions), the rpcd backend, the ACL and the menu entry |
+| `trusttunnel` | yes | the runtime: the procd service, the routing helper, the records helpers, the default UCI config, the uci-defaults script and the hotplug hook |
+| `trusttunnel-client` | yes | the vendor client binaries (`trusttunnel_client` and `setup_wizard`) in `/opt/trusttunnel_client` |
+| `luci-app-trusttunnel-diagnostics` | no | the Diagnostics and Tools pages |
+
+Each package depends on the packages below it in the tree. A router that
+installs `luci-app-trusttunnel` therefore gets the runtime and the client
+package too. The diagnostics add-on is not a dependency of the app.
+Install it separately (see [README.md](README.md#installation)).
+
+The packages also depend on packages outside this project:
+
+- `trusttunnel-client` depends on `kmod-tun` and `ca-bundle`.
+- `trusttunnel` depends on `ip-full` and `nftables`.
+- `luci-app-trusttunnel` depends on `luci-base`, `curl` and
+  `ucode-mod-math`.
+- `luci-app-trusttunnel-diagnostics` depends on `luci-base`.
+
+The installer installs `kmod-tun ip-full nftables curl ca-bundle`
+directly, and then installs the app.
 
 ---
 

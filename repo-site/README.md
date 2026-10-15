@@ -18,6 +18,10 @@ configures on the router:
   and
   `https://trusttunnel.github.io/TrustTunnelOpenWrt/releases/22.03.7/packages/<arch>/trusttunnel`
 
+The feeds carry the four packages of the project: the LuCI app, the
+runtime, the client binaries and the optional diagnostics add-on. The app
+depends on the runtime, and the runtime depends on the client package.
+
 The repositories are cumulative: they serve every released version of
 the LuCI app, with the latest release (`__TAG__`) on top of all earlier
 ones. You can pin or downgrade to an older version at any time. The same

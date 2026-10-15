@@ -21,8 +21,8 @@
 
 - [CONFIGURATION.md](CONFIGURATION.md) — configure the tunnel through LuCI
   or UCI
-- [REFERENCE.md](REFERENCE.md) — the LuCI pages, every setting and where
-  the files live
+- [REFERENCE.md](REFERENCE.md) — the packages, the LuCI pages, every
+  setting and where the files live
 - [BEHAVIOUR.md](BEHAVIOUR.md) — how the routing, the profiles and the
   killswitch work, plus the limitations
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — what to check when something
@@ -68,6 +68,26 @@ killswitch.
   `riscv64` or `powerpc` — before it changes a single file.
 - **Internet access from the router**: the installer needs it once, at
   install time.
+
+---
+
+## Packages
+
+The project ships four packages. Three of them are mandatory:
+
+- `luci-app-trusttunnel` — the LuCI app: the pages, the backend and the
+  menu entry
+- `trusttunnel` — the runtime: the service, the routing and the UCI
+  config
+- `trusttunnel-client` — the client binaries in `/opt/trusttunnel_client`
+
+The app depends on the runtime, and the runtime depends on the client
+package. One install therefore pulls all three. The optional fourth
+package is `luci-app-trusttunnel-diagnostics`, which adds the Diagnostics
+and Tools pages. Install it separately (see Installation).
+
+[REFERENCE.md](REFERENCE.md#packages) lists every package, its contents
+and its dependencies.
 
 ---
 
