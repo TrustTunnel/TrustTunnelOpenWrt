@@ -834,11 +834,9 @@ managers rely on. No branch ever holds packages.
   file names. Merged to `master` via PRs. Feature work happens on
   branches.
 - **i18n**: the interface is English-only — no translation package is
-  built or installed. New user-visible strings in views still use `_()`,
-  and backend strings shown in the Diagnostics view use the `DIAG_TEXT`
-  map in `diagnostics.js`. The Russian translations are
-  parked in the separate translations repository for later
-  reintroduction.
+  built or installed. New user-visible strings in views use `_()`, and
+  backend strings shown in the Diagnostics view use the `DIAG_TEXT` map
+  in `diagnostics.js`.
 - **Hardcoded paths** (keep consistent): `/etc/config/trusttunnel`,
   `/etc/init.d/trusttunnel`, `/opt/trusttunnel_client`,
   `/usr/libexec/trusttunnel/{uci-export,gen-config,routing,records.sh}`,
