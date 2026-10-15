@@ -90,10 +90,6 @@ harness against the built repositories and uploads the failure logs as an
 artifact. The `/dev/net/tun` preflight (with a mknod/modprobe fallback)
 fails loudly instead of letting the harness confuse everyone.
 
-Note: `main` dropped the localisation (PRs #17/#19). The contract of the
-suite is therefore the two packages, `luci-app-trusttunnel` and
-`trusttunnel-client`, and the harness has no translation-specific steps.
-
 The release pipeline additionally runs the harness against the release's
 own x86-64 packages (`verify-integration` in `release.yml`). Publishing
 waits for it. There is no SDK rebuild there. The pipeline consumes the

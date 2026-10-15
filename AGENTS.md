@@ -741,8 +741,8 @@ GitHub release. A mis-triggered run fails before any SDK work starts.
   the new client against the repositories' current app.
 - `publish-repo` — downloads the artifacts plus every prior release's
   packages via `gh release download` (only the current package set is
-  merged: the early `-lite` releases and the dropped i18n packages are
-  filtered out, and an ipk-less first release is skipped, not failed),
+  merged: the early `-lite` releases are filtered out, and an ipk-less
+  first release is skipped, not failed),
   assembles:
     - per-arch signed repositories in the official OpenWrt layout —
       `releases/<version>/packages/<arch>/trusttunnel/` on the site, one
