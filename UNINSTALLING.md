@@ -6,20 +6,21 @@ Run the uninstaller:
 sh -c "$(wget -O - https://raw.githubusercontent.com/TrustTunnel/TrustTunnelOpenWrt/master/uninstall.sh)"
 ```
 
-It halts and disables the service, removes the packages (the app, the
-runtime and the client, plus the optional diagnostics package when it is
-installed), tears down the repository configuration and the signing keys
-the installer put in place, deletes the client binaries and caches (plus the
-leftovers of earlier package versions), restarts `rpcd` and checks the
-kernel for leftover routing state. It asks whether to remove the firewall
-zone (default: yes) and the settings file (default: no — a reinstall
-keeps it).
+The uninstaller halts and disables the service. It removes the packages
+(the app, the runtime and the client, plus the optional diagnostics
+package when it is installed). It removes the repository configuration
+and the signing keys that the installer put in place. It deletes the
+client binaries and caches, plus the leftovers of earlier package
+versions. It restarts `rpcd` and checks the kernel for leftover routing
+state. It asks whether to remove the firewall zone (default: yes) and
+the settings file (default: no, because a reinstall keeps it).
 
-Flags: `-y` answers every question with yes; `-c` keeps
-`/etc/config/trusttunnel` without asking. Shared dependencies (`kmod-tun`,
-`ip-full`, `nftables`, `curl`, `ca-bundle`) stay installed on purpose.
+Flags: `-y` answers every question with yes. `-c` keeps
+`/etc/config/trusttunnel` without asking. Shared dependencies
+(`kmod-tun`, `ip-full`, `nftables`, `curl`, `ca-bundle`) stay installed
+on purpose.
 
-Removing by hand works as well:
+You can also remove everything by hand:
 
 ```sh
 /etc/init.d/trusttunnel stop

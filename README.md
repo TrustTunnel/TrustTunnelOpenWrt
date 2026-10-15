@@ -30,18 +30,18 @@
 - [UPDATING.md](UPDATING.md) — keep the packages current and pin a client
   version
 - [UNINSTALLING.md](UNINSTALLING.md) — remove the packages and the
-  repository setup
+  repository configuration
 
 ---
 
 ## Introduction
 
-TrustTunnel client daemon for OpenWrt routers: it runs the tunnel, exposes
-a LuCI control page and delivers the tunnel to the LAN. Targets OpenWrt
+TrustTunnel client daemon for OpenWrt routers. It runs the tunnel, exposes
+a LuCI control page and delivers the tunnel to the LAN. It supports OpenWrt
 **22.03 and newer** (`apk`-based systems 25.12+, `opkg`-based 22.03–24.10).
 
-The tunnel runs in one of two operation modes: **TUN** (the default)
-routes the LAN through the tunnel, **proxy** runs a SOCKS5 listener
+The tunnel runs in one of two operation modes. **TUN** mode (the default)
+routes the LAN through the tunnel. **Proxy** mode runs a SOCKS5 listener
 instead. Named routing profiles decide which destinations use the tunnel.
 [BEHAVIOUR.md](BEHAVIOUR.md) describes the routing, the profiles and the
 killswitch.
@@ -51,10 +51,10 @@ killswitch.
 ## Requirements
 
 - **OpenWrt 22.03 or newer**: `apk`-based systems need 25.12+,
-  `opkg`-based systems 22.03–24.10. The installer figures out which
-  package manager is in use.
+  `opkg`-based systems 22.03–24.10. The installer detects which package
+  manager the router uses.
 - **CPU**: one of the five families the vendor builds for. The installer
-  probes `uname -m` first and aborts before anything changes on
+  probes `uname -m` first. It stops before it changes anything on
   unsupported hardware:
 
   | `uname -m`          | Covers                                        |
@@ -62,11 +62,12 @@ killswitch.
   | `x86_64`            | mini-PCs, virtual machines, x86 gateways      |
   | `aarch64` / `arm64` | modern 64-bit ARM routers                     |
   | `armv7l` / `armv8l` | 32-bit ARM routers of the previous generation |
-  | `mips` / `mipsel`   | MIPS-based routers, e.g. ath79/ramips boards  |
+  | `mips` / `mipsel`   | MIPS-based routers such as ath79/ramips boards |
 
-  Anything else — ARMv5/ARMv6 boards, `mips64`, `riscv64` or `powerpc` —
-  is refused before a single file is changed.
-- **Internet access from the router**: needed once at install time.
+  The installer refuses anything else — ARMv5/ARMv6 boards, `mips64`,
+  `riscv64` or `powerpc` — before it changes a single file.
+- **Internet access from the router**: the installer needs it once, at
+  install time.
 
 ---
 
@@ -78,58 +79,60 @@ Run the installer:
 sh -c "$(wget -O - https://raw.githubusercontent.com/TrustTunnel/TrustTunnelOpenWrt/master/install.sh)"
 ```
 
-Routers configured with an older installer URL can switch to the current
-repository by running this command again — it re-points the package
-manager at the current feed (settings and service state are preserved).
+If your router uses an older installer URL, run this command again. The
+command points the package manager at the current feed. The settings and
+the service state stay the same.
 
-The script then:
+The script does these steps:
 
-1. Checks the environment — OpenWrt release, CPU family, package manager
-   (apk or opkg). The architecture gate runs before anything is changed.
-2. Points the package manager at the signed package repositories served
-   from this project's GitHub Pages site — one feed directory per device
-   architecture, in the official OpenWrt layout — and installs the signing
-   key.
-3. Installs the required packages `kmod-tun ip-full nftables curl
-   ca-bundle`, then `luci-app-trusttunnel` with the `trusttunnel`
-   runtime (the service and the routing) and `trusttunnel-client` as
-   its dependencies (binaries in `/opt/trusttunnel_client`).
-4. Restarts `rpcd` so the new backend code is loaded, and runs
-   `/etc/uci-defaults/40-luci-trusttunnel` immediately: it creates the
-   firewall zone, the `lan → trusttunnel` forwarding and the Default
-   routing profile. Idempotent — the same run at the next boot changes
-   nothing.
-5. Returns the service to its previous state — a first install leaves it
-   disabled. Configure the endpoint first (see
-   [CONFIGURATION.md](CONFIGURATION.md)), then turn the switch on and
-   start the service.
+1. Checks the environment: the OpenWrt release, the CPU family and the
+   package manager (apk or opkg). The architecture check runs before any
+   change.
+2. Points the package manager at the signed package repositories on the
+   GitHub Pages site of this project. Each device architecture has one
+   feed directory in the official OpenWrt layout. The script also installs
+   the signing key.
+3. Installs the packages `kmod-tun ip-full nftables curl ca-bundle`, and
+   then `luci-app-trusttunnel`. The `trusttunnel` runtime (the service and
+   the routing) and `trusttunnel-client` (the binaries in
+   `/opt/trusttunnel_client`) arrive as dependencies.
+4. Restarts `rpcd` to load the new backend code. It runs
+   `/etc/uci-defaults/40-luci-trusttunnel` immediately. That script
+   creates the firewall zone, the `lan → trusttunnel` forwarding and the
+   Default routing profile. The script is idempotent: the same run at the
+   next boot changes nothing.
+5. Returns the service to its previous state. A first install leaves the
+   service disabled. Configure the endpoint first (see
+   [CONFIGURATION.md](CONFIGURATION.md)). Then set the service switch to
+   on and start the service.
 
-Run the installer again to pull a newer package and client binary and to
-refresh the signing keys; `/etc/config/trusttunnel` is left alone.
+Run the installer again to update the package and the client binary, and
+to refresh the signing keys. The installer does not touch
+`/etc/config/trusttunnel`.
 
-The Diagnose and Tools pages are an optional add-on; install the
+The Diagnose and Tools pages are an optional add-on. Install the
 `luci-app-trusttunnel-diagnostics` package separately from the same
-repository (`apk add luci-app-trusttunnel-diagnostics` on OpenWrt 25.12+,
-`opkg install luci-app-trusttunnel-diagnostics` on 22.03–24.10). The core
-app works without it.
+repository: `apk add luci-app-trusttunnel-diagnostics` on OpenWrt 25.12+,
+or `opkg install luci-app-trusttunnel-diagnostics` on 22.03–24.10. The
+core app works without it.
 
 ---
 
 ## Testing and feedback
 
-The package is actively tested on **x86_64** virtual machines and
-**mipsel** routers. The remaining vendor-supported families (`aarch64`,
-`armv7l`/`armv8l`, `mips`) are covered by the release pipeline's
-per-architecture builds but have seen less hands-on verification on real
-devices — reports from those platforms are especially valuable.
+The package is tested on **x86_64** virtual machines and **mipsel**
+routers. The release pipeline builds the remaining vendor-supported
+families (`aarch64`, `armv7l`/`armv8l`, `mips`), but the project has
+verified them less on real devices. Reports from those platforms are
+especially valuable.
 
-Usage reports, bug reports and pull requests are welcome: open an
+Usage reports, bug reports and pull requests are welcome. Open an
 [issue](https://github.com/TrustTunnel/TrustTunnelOpenWrt/issues) for
-anything that does not behave, and
-[pull requests](https://github.com/TrustTunnel/TrustTunnelOpenWrt/pulls)
-for fixes and improvements. When reporting a problem on a platform other
-than x86_64/mips, mention the router model and the OpenWrt release —
-device-specific quirks usually reproduce only with that context.
+anything that does not behave, and send a
+[pull request](https://github.com/TrustTunnel/TrustTunnelOpenWrt/pulls)
+for a fix or an improvement. If you report a problem on a platform other
+than x86_64/mips, include the router model and the OpenWrt release.
+Device-specific quirks usually reproduce only with that context.
 
 ---
 

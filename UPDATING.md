@@ -1,7 +1,7 @@
 # Updating
 
-The repository entry installed by the setup script remains, so keeping the
-package current is a plain package-manager call:
+The setup script installs the repository entry, and the entry stays in
+place. To keep the package current, run a package-manager command:
 
 ```sh
 apk update && apk upgrade   # OpenWrt 25.12+
@@ -9,12 +9,12 @@ opkg update && opkg upgrade # OpenWrt 22.03–24.10
 ```
 
 `trusttunnel-client` is a hard dependency of the LuCI app, so the binary
-updates together with the package — and can also arrive on its own, via
-a client-only release of the repositories — while `/etc/config/trusttunnel`
-survives untouched.
+updates together with the package. A client-only release of the
+repositories can also update the binary on its own.
+`/etc/config/trusttunnel` survives untouched.
 
-Every released client version stays in the repositories, so a specific
-build can be pinned instead of taking the newest one:
+Every released client version stays in the repositories. You can pin a
+specific build instead of taking the newest one:
 
 ```sh
 # OpenWrt 25.12+ — the constraint is kept across upgrades:
@@ -26,6 +26,6 @@ opkg install --force-downgrade /tmp/tt-client.ipk
 opkg flag hold trusttunnel-client
 ```
 
-`<arch>` is the device's package architecture (`x86_64`,
-`aarch64_cortex-a53`, `mipsel_24kc`, ...), and the version can be any
-one the feed lists.
+`<arch>` is the package architecture of the device (`x86_64`,
+`aarch64_cortex-a53`, `mipsel_24kc`, ...). The version can be any one
+that the feed lists.
