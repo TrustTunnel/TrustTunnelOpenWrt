@@ -58,18 +58,24 @@ The Status, Settings, Client log and Versions pages live under **Services
     - the service runs, but the tunnel is not up yet ("connecting") — in
       proxy mode the banner watches the SOCKS listener instead
     - the tunnel works, with the assigned profile named
+    - the tunnel works in proxy mode without a profile ("Proxy traffic
+      goes through the tunnel")
+    - the tunnel works in tun mode without a profile ("No routing
+      profile — traffic goes out directly")
 - **Current state**, refreshed every ten seconds. It holds a State row
   ("working" only when everything is), a Mode row, the server host name
   and, in proxy mode, the listener address. The Mode row names the
   assigned profile and the half of its rules that goes through the
-  tunnel. Without a profile it shows "Everything through VPN". A
+  tunnel. In proxy mode without a profile it shows "Everything through
+  VPN". In tun mode it shows "Direct — no routing profile". A
   **Traffic** row shows the current download and upload rates (a
   ten-second average) and the cumulative bytes. In tun mode the counters
   come from the tun device. In proxy mode they come from the listener
-  port. The page also carries Start, Stop and Restart buttons.
+  port. The page also carries Start and Stop buttons.
 - **Preview rules** shows how the system treats each rule of the
-  assigned profile now. Without a profile it shows the legacy "do not
-  bypass" list.
+  assigned profile now. In proxy mode without a profile it shows the
+  legacy "do not bypass" list. In tun mode it states that traffic goes
+  out directly.
 
 ### Client log page
 
