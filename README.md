@@ -93,12 +93,12 @@ chain above. Proxy mode uses none of the routing or firewall parts.
   probes `uname -m` first and aborts before anything changes on
   unsupported hardware:
 
-  | `uname -m` | Covers |
-  |---|---|
-  | `x86_64` | mini-PCs, virtual machines, x86 gateways |
-  | `aarch64` / `arm64` | modern 64-bit ARM routers |
+  | `uname -m`          | Covers                                        |
+  | ------------------- | --------------------------------------------- |
+  | `x86_64`            | mini-PCs, virtual machines, x86 gateways      |
+  | `aarch64` / `arm64` | modern 64-bit ARM routers                     |
   | `armv7l` / `armv8l` | 32-bit ARM routers of the previous generation |
-  | `mips` / `mipsel` | MIPS-based routers, e.g. ath79/ramips boards |
+  | `mips` / `mipsel`   | MIPS-based routers, e.g. ath79/ramips boards  |
 
   Anything else — ARMv5/ARMv6 boards, `mips64`, `riscv64` or `powerpc` —
   is refused before a single file is changed.
@@ -325,7 +325,7 @@ behind a toggle. Read the list top to bottom and look for the first
 problem.
 
 | Group | Checks |
-|---|---|
+| --- | --- |
 | Configuration | endpoint address, credentials, TLS host name, assigned routing profile |
 | Prerequisites | client binary, `/dev/net/tun` (TUN mode only) |
 | Service | enabled at boot, running now |
@@ -566,7 +566,7 @@ the service starts or settings are applied — they must not be edited.
 ### Section `main`
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `enabled` | `0` | The service switch: the service starts at boot when it is on. An explicit Start from the Status page runs it even while it is off — but it stays off at the next boot, and the automatic starts (boot, WAN up, config reload) are still refused |
 | `mode` | `tun` | The operation mode: `tun` routes the whole LAN through the client automatically; `proxy` runs a SOCKS5 listener instead (see the `proxy` section) |
 | `endpoint` | `Default` | The ACTIVE server: the `name` of the `endpoint` section the tunnel uses right now. The other saved servers stay configured but unused |
@@ -577,7 +577,7 @@ the service starts or settings are applied — they must not be edited.
 Used in proxy mode only.
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `address` | `127.0.0.1:1080` | The `IP:port` the SOCKS5 listener binds. `127.0.0.1:1080` serves the router itself; `0.0.0.0:1080` or the router's LAN address serves the whole LAN — the client then requires `username`/`password`. |
 | `username` | — | Optional SOCKS5 authentication; set it together with `password`, or leave both empty for an open proxy. Mandatory for any listener outside the loopback. |
 | `password` | — | The SOCKS5 password; emitted only when `username` is set |
@@ -590,7 +590,7 @@ credentials and pinned certificate ever reach the generated client
 configuration.
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `name` | — | Unique name; `main.endpoint` selects the ACTIVE server by it. Required. |
 | `hostname` | — | TLS host name, used for the TLS session rather than for routing; many servers refuse the connection without it. Required. |
 | `address` | — | `host:port` or `[ipv6]:port`, repeatable. With several addresses the client measures them and picks the fastest. At least one required. |
@@ -610,7 +610,7 @@ configuration.
 ### Section `network`
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `mtu` | `1350` | Tunnel MTU. Too high a value makes small pages load while TLS handshakes and large downloads stall. |
 | `lan_devices` | — | LAN interfaces whose forwarded traffic is considered; empty means the device of the `lan` network, with `br-lan` as the last-resort fallback |
 | `blackhole_on_down` | `0` | Fail-open default: the blackhole exists only while a tun device is attached, so marked traffic falls through to the direct route while the client connects or is down. Set to `1` for the strict killswitch: the blackhole stays armed without a device, so marked traffic is dropped instead of leaking to the provider whenever it cannot reach the tunnel. |
@@ -621,7 +621,7 @@ configuration.
 ### Section `routing_profile` (anonymous, repeatable)
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `name` | — | Unique name; the ACTIVE server's `routing_profile` option assigns the profile by it. |
 | `mode` | `bypass` | `vpn` — tunnel everything except the bypass rules; `bypass` — tunnel only the VPN rules (the default: traffic goes out directly until rules route it). |
 | `vpn_rules` | — | Sent through the tunnel. In bypass mode these are the only tunneled destinations; in VPN mode the list has no effect. |
@@ -630,7 +630,7 @@ configuration.
 ### Section `domains` (legacy)
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `direct` | — | The flat "do not bypass" list, applied in proxy mode when no routing profile is assigned (or the assigned name no longer matches any). In TUN mode the fallback routes nothing, so the list has no effect there. |
 
 Rule entries in every list accept a plain domain, a `*.domain` wildcard,
