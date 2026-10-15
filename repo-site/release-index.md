@@ -1,5 +1,5 @@
 ---
-layout: repo-index
+layout: default
 title: "releases — __TREE__ — TrustTunnelOpenWrt"
 ---
 

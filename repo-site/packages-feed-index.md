@@ -1,5 +1,5 @@
 ---
-layout: repo-index
+layout: default
 title: "trusttunnel feed — __ARCH__ — TrustTunnelOpenWrt"
 ---
 

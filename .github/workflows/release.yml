@@ -1259,8 +1259,9 @@ jobs:
           cp repo-site/favicon.ico site/favicon.ico
           cp repo-site/_config.yml site/_config.yml
           # The layouts all the index templates reference via their front
-          # matter — the theme's default minus the "Improve this page"
-          # footer, plus the redirect layout for the structural stubs.
+          # matter — the branded default page shell (it overrides the
+          # theme's layout of the same name), plus the redirect layout for
+          # the structural stubs.
           cp -r repo-site/_layouts site/_layouts
 
           cp repo-site/README.md site/README.md
