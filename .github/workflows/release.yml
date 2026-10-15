@@ -728,12 +728,11 @@ jobs:
           for tag in $tags; do
             [ "$tag" = "$exclude" ] && continue
             # Only the current package set is merged: the early -lite
-            # releases and the dropped i18n packages must not resurface
-            # in the repositories. The [0-9] anchor keeps the version
-            # directly after the package name (-lite versions start
-            # with a letter instead), and releases with no matching
-            # assets (the first ipk-less release) are skipped, which
-            # gh would otherwise report as an error.
+            # releases must not resurface in the repositories. The [0-9]
+            # anchor keeps the version directly after the package name
+            # (-lite versions start with a letter instead), and releases
+            # with no matching assets (the first ipk-less release) are
+            # skipped, which gh would otherwise report as an error.
             names="$(gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null || true)"
             if printf '%s\n' "$names" | grep -Eq '^(luci-app-trusttunnel|luci-app-trusttunnel-diagnostics|trusttunnel|trusttunnel-client)-[0-9].*\.apk$'; then
               gh release download "$tag" \
@@ -878,8 +877,8 @@ jobs:
       # the feed URL from DISTRIB_ARCH). Prior releases first, so the
       # freshly built packages win on a same-name collision (a dispatch
       # run at the latest tag). The [0-9] anchor keeps the old -lite
-      # packages and the dropped i18n packages out of the feed. Every
-      # prior client version is kept, not only the current one: opkg
+      # packages out of the feed. Every prior client version is kept,
+      # not only the current one: opkg
       # installs the highest version, so the fresh build wins by default,
       # while a router can still pin an older one by installing its
       # exact ipk from the feed (opkg has no pkg=version CLI syntax).
@@ -1259,8 +1258,9 @@ jobs:
           cp repo-site/favicon.ico site/favicon.ico
           cp repo-site/_config.yml site/_config.yml
           # The layouts all the index templates reference via their front
-          # matter — the theme's default minus the "Improve this page"
-          # footer, plus the redirect layout for the structural stubs.
+          # matter — the branded default page shell (it overrides the
+          # theme's layout of the same name), plus the redirect layout for
+          # the structural stubs.
           cp -r repo-site/_layouts site/_layouts
 
           cp repo-site/README.md site/README.md

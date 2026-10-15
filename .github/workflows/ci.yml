@@ -1,4 +1,4 @@
-# Continuous integration gate for the trusttunnel-openwrt package.
+# Continuous integration gate for the TrustTunnelOpenWrt package.
 #
 # Every step below is a contract gate: the tree must pass each one before
 # it is shippable.

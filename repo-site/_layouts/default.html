@@ -1,0 +1,85 @@
+---
+---
+{% comment %}
+The branded page shell of the site. Jekyll uses this file before the
+theme layout of the same name (GitHub Pages renders the site with
+jekyll-theme-primer). The header below therefore appears on every page
+that names no other layout. That includes the homepage, which
+jekyll-readme-index renders from README.md with the default layout. The
+generated index pages (releases/, releases/<version>/, the per-feed
+pages) name it in their front matter. The structural levels in between
+use the redirect layout.
+
+The differences from the theme layout are deliberate:
+
+- The header carries the TrustTunnel logo, a label that names this site,
+  and links to the GitHub repository, the releases and the website of
+  the organization.
+- The theme footer ("This site is open source. Improve this page") is
+  gone. Jekyll builds its link from the source path of the page. That
+  path exists only for the homepage (repo-site/README.md). The generated
+  index pages have no such file in the repository, so the footer would
+  point at nothing on most pages.
+- The site-title heading of the theme is gone. The header already names
+  the site. The theme would print the repository name as a second,
+  redundant title above every page.
+- The brand styles live in the <style> block below. The site assembly of
+  the release workflow stages _layouts/ as a whole, so no separate
+  stylesheet has to travel with it.
+
+The logo is hot-linked from the AdGuard CDN, the same asset that the
+READMEs of the organization use. The file references only the light
+variant. The Primer theme has no dark mode, so a dark-preference browser
+would get the white lettering of the dark variant on the white
+background of the theme.
+
+The front matter must stay the FIRST thing in the file. Jekyll strips
+the `---` delimiters only when they open the file. Otherwise it emits
+them into the rendered page as literal text.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="{{ page.lang | default: site.lang | default: "en-US" }}">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+{% seo %}
+    <link rel="stylesheet" href="{{ "/assets/css/style.css?v=" | append: site.github.build_revision | relative_url }}">
+    <style>
+      /* TrustTunnel brand palette (the organization's site and clients):
+         blue #3972aa, hover #2b5a87, neutral greys #74869c / #5c6e84 and
+         the hairlines #e6eaef / #d1d8e0. */
+      .tt-header { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding-bottom: .75rem; margin-bottom: 2rem; border-bottom: 1px solid #e6eaef; }
+      .tt-header .tt-brand { display: block; line-height: 0; }
+      .tt-header img { display: block; height: 28px; width: auto; }
+      .tt-header .tt-site-label { padding-left: 1rem; border-left: 1px solid #d1d8e0; color: #5c6e84; font-size: .875rem; }
+      .tt-header nav { display: flex; flex-wrap: wrap; gap: 1rem; margin-left: auto; font-size: .875rem; font-weight: 600; }
+      .tt-header nav a { color: #3972aa; text-decoration: none; }
+      .tt-header nav a:hover { color: #2b5a87; text-decoration: underline; }
+      .markdown-body a { color: #3972aa; }
+      .markdown-body a:hover { color: #2b5a87; }
+    </style>
+    {% include head-custom.html %}
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5">
+      <header class="tt-header">
+        <a class="tt-brand" href="{{ "/" | relative_url }}">
+          <img src="https://cdn.adguardcdn.com/website/github.com/TrustTunnel/logo_light.svg" width="147" height="24" alt="TrustTunnel">
+        </a>
+        <span class="tt-site-label">OpenWrt packages</span>
+        <nav>
+          <a href="https://github.com/TrustTunnel/TrustTunnelOpenWrt">GitHub</a>
+          <a href="https://github.com/TrustTunnel/TrustTunnelOpenWrt/releases">Releases</a>
+          <a href="https://trusttunnel.org">Website</a>
+        </nav>
+      </header>
+      <div class="markdown-body">
+        {{ content }}
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

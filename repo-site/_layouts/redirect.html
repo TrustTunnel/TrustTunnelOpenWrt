@@ -2,15 +2,16 @@
 ---
 {% comment %}
 One-line redirect pages for structural URL levels that carry no content
-of their own (releases/<ver>/packages/ and releases/<ver>/packages/<arch>/):
-the browser is sent on immediately, so the click path to the feed pages
-stays short while no directory URL 404s (Pages serves no directory
-listings). The generated pages set the redirect_to front-matter value;
-the meta refresh and the visible link both use it, and the relative
-target resolves against the page's own URL.
+of their own (releases/<ver>/packages/ and
+releases/<ver>/packages/<arch>/). The browser moves on immediately, so
+the click path to the feed pages stays short, and no directory URL
+returns 404 (Pages serves no directory listings). The generated pages
+set the redirect_to front-matter value. The meta refresh and the visible
+link both use it, and the relative target resolves against the URL of
+the page itself.
 
-The front matter must stay the FIRST thing in the file: Jekyll only
-strips the `---` delimiters when they open the file.
+The front matter must stay the FIRST thing in the file. Jekyll strips
+the `---` delimiters only when they open the file.
 {% endcomment %}
 <!DOCTYPE html>
 <html lang="en">

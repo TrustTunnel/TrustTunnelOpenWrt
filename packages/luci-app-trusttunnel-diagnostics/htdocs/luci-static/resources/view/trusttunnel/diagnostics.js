@@ -202,7 +202,7 @@ var verdictBanner = function (res) {
 var lastDiagnose = null;
 
 // Plain-text rendering of a diagnose result for pasting into a bug
-// report. Uses the translated labels, so the report reads like the page.
+// report. Uses the DIAG_TEXT labels, so the report reads like the page.
 var serializeDiagnose = function (res) {
 	var counts = res.counts || {};
 	var lines = [

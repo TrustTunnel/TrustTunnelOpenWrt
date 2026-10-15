@@ -1099,11 +1099,11 @@ st_connect() {
 		return
 	fi
 	# The endpoint is configured with the router's own tools, exactly like
-	# the README's headless example — plus the PINNED certificate, which is
-	# what the client verifies against (skip_verification stays off). The
-	# seeded Default profile stays in bypass mode with no rules: the direct
-	# by-default contract is asserted in the traffic stage, and the tunnel
-	# is switched to full-tunnel mode there explicitly.
+	# the CONFIGURATION.md headless example — plus the PINNED certificate,
+	# which is what the client verifies against (skip_verification stays
+	# off). The seeded Default profile stays in bypass mode with no rules:
+	# the direct by-default contract is asserted in the traffic stage, and
+	# the tunnel is switched to full-tunnel mode there explicitly.
 	cat > "$SCRATCH/configure.sh" <<EOF
 #!/bin/sh
 set -e

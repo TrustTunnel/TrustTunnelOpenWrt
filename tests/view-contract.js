@@ -15,8 +15,8 @@
 //
 // 2. Diagnostics strings: every literal label/detail/hint the diagnose
 //    method emits -- as pinned by the byte-exact backend contract goldens --
-//    must be a key of the DIAG_TEXT map in diagnostics.js. Unmapped strings
-//    would render untranslated in the Diagnostics view. Templated values
+//    must be a key of the DIAG_TEXT map in diagnostics.js. An unmapped
+//    string falls through to the raw backend text. Templated values
 //    (addresses, versions, ping averages, ...) are exempt via the ALLOWLIST
 //    below; a NEW literal string in a golden without a DIAG_TEXT entry fails
 //    this gate.
