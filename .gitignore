@@ -20,10 +20,11 @@ tests/backend/mod/trusttunnel.uc
 .claude/
 .superpowers/
 
-# User documentation lives in the repository root and is tracked: README.md.
-# If another user-facing document is added here, its place is also in the
-# root — otherwise it will silently fall out of the repository and a link to
-# it from README will end up broken.
+# User documentation lives in the repository root and is tracked: README.md
+# is the landing page and the topic documents sit next to it. If another
+# user-facing document is added, its place is also in the root — otherwise
+# it will silently fall out of the repository and a link to it from README
+# will end up broken.
 
 # MIGRATION.md is the one-time repository-move plan: it is maintained
 # locally only and must never be committed (it must not travel to the

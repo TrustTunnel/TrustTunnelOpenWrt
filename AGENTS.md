@@ -23,7 +23,8 @@ CPU families: `x86_64`, `aarch64`, `armv7l/armv8l`, `mips`, `mipsel`.
 The package routes LAN traffic through the tunnel using **fwmark → routing
 table 880 → the client's tun device**, backed by a blackhole killswitch, and
 is configured through **named routing profiles** (VPN mode / Bypass mode).
-See `README.md` for the user-facing description.
+See `README.md` and the topic documents next to it for the user-facing
+description.
 
 ## Repository layout
 
@@ -66,9 +67,12 @@ key-build.pub, opkg-key.pub   PUBLIC halves of the repo signing keys (committed)
 LICENSE                       Apache-2.0
 ```
 
-There is no `docs/` directory; user documentation lives in `README.md` and
-is tracked in the root on purpose (see `.gitignore` comment). The private
-halves of the signing keys are GitHub secrets, never committed.
+There is no `docs/` directory; user documentation lives in the repository
+root and is tracked on purpose (see the `.gitignore` comment): `README.md`
+is the landing page, and `CONFIGURATION.md`, `REFERENCE.md`,
+`BEHAVIOUR.md`, `TROUBLESHOOTING.md`, `UPDATING.md` and `UNINSTALLING.md`
+carry the how-to, reference and explanation content. The private halves of
+the signing keys are GitHub secrets, never committed.
 
 ## Router-side scripts (`install.sh` / `uninstall.sh`)
 
