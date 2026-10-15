@@ -1,4 +1,53 @@
-# TrustTunnel distribution for OpenWrt
+<!-- markdownlint-disable MD041 -->
+<p align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://cdn.adguardcdn.com/website/github.com/TrustTunnel/logo_dark.svg" width="300px" alt="TrustTunnel" />
+<img src="https://cdn.adguardcdn.com/website/github.com/TrustTunnel/logo_light.svg" width="300px" alt="TrustTunnel" />
+</picture>
+</p>
+
+<p align="center">TrustTunnel client packages for OpenWrt routers</p>
+
+<p align="center"><a href="#installation">Install</a>
+  · <a href="https://trusttunnel.github.io/TrustTunnelOpenWrt/">Package repositories</a>
+  · <a href="https://github.com/TrustTunnel/TrustTunnel">Server</a>
+  · <a href="https://github.com/TrustTunnel/TrustTunnelClient">CLI client</a>
+  · <a href="https://trusttunnel.org">Website</a>
+</p>
+
+---
+
+## Table of Contents
+
+- [Introduction](#introduction)
+- [Requirements](#requirements)
+- [Testing and feedback](#testing-and-feedback)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [LuCI pages](#luci-pages)
+    - [Status page](#status-page)
+    - [Client log page](#client-log-page)
+    - [Diagnostics page](#diagnostics-page)
+- [Behaviour](#behaviour)
+- [Updating](#updating)
+- [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
+- [Uninstalling](#uninstalling)
+- [Settings reference](#settings-reference)
+    - [Section `main`](#section-main)
+    - [Section `proxy`](#section-proxy)
+    - [Section `endpoint`](#section-endpoint-repeatable-one-section-per-saved-server)
+    - [Section `network`](#section-network)
+    - [Section `routing_profile`](#section-routing_profile-anonymous-repeatable)
+    - [Section `domains`](#section-domains-legacy)
+- [Where things live](#where-things-live)
+- [Notes and caveats](#notes-and-caveats)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
+
+---
+
+## Introduction
 
 TrustTunnel client daemon for OpenWrt routers: it runs the tunnel, exposes
 a LuCI control page and delivers the tunnel to the LAN. Targets OpenWrt
@@ -33,6 +82,8 @@ plus, in TUN mode, a `trusttunnel` firewall zone bound to the attached
 tun device with a `lan → trusttunnel` forwarding rule and the routing
 chain above. Proxy mode uses none of the routing or firewall parts.
 
+---
+
 ## Requirements
 
 - **OpenWrt 22.03 or newer**: `apk`-based systems need 25.12+,
@@ -53,6 +104,8 @@ chain above. Proxy mode uses none of the routing or firewall parts.
   is refused before a single file is changed.
 - **Internet access from the router**: needed once at install time.
 
+---
+
 ## Testing and feedback
 
 The package is actively tested on **x86_64** virtual machines and
@@ -68,6 +121,8 @@ anything that does not behave, and
 for fixes and improvements. When reporting a problem on a platform other
 than x86_64/mips, mention the router model and the OpenWrt release —
 device-specific quirks usually reproduce only with that context.
+
+---
 
 ## Installation
 
@@ -110,6 +165,8 @@ The Diagnose and Tools pages are an optional add-on; install the
 repository (`apk add luci-app-trusttunnel-diagnostics` on OpenWrt 25.12+,
 `opkg install luci-app-trusttunnel-diagnostics` on 22.03–24.10). The core
 app works without it.
+
+---
 
 ## Configuration
 
@@ -228,6 +285,8 @@ uci commit trusttunnel
 Point the SOCKS5-capable app or device at `0.0.0.0:1080` (the router's
 address as seen from the LAN) with the credentials above.
 
+---
+
 ## LuCI pages
 
 The Status, Settings, Client log and Versions pages live under **Services
@@ -297,6 +356,8 @@ The page also carries three tools:
   reason. The tool only consults the rule lists; it does not resolve the
   domain or touch the rules.
 
+---
+
 ## Behaviour
 
 - **Marking and routing.** In TUN mode the `trusttunnel` zone is bound to
@@ -346,6 +407,8 @@ The page also carries three tools:
   firewall zone are not involved; the killswitch, MTU, LAN-interface and
   routing options have no effect.
 
+---
+
 ## Updating
 
 The repository entry installed by the setup script remains, so keeping the
@@ -377,6 +440,8 @@ opkg flag hold trusttunnel-client
 `<arch>` is the device's package architecture (`x86_64`,
 `aarch64_cortex-a53`, `mipsel_24kc`, ...), and the version can be any
 one the feed lists.
+
+---
 
 ## Troubleshooting
 
@@ -420,6 +485,8 @@ one the feed lists.
   client configuration; when the interface and the applied state diverge,
   the service log shows where the apply failed.
 
+---
+
 ## Limitations
 
 - Only forwarded LAN traffic is routed by default; traffic originating on
@@ -445,6 +512,8 @@ one the feed lists.
   bound to `0.0.0.0` is reachable by the whole LAN — the client itself
   refuses to bind anything outside the loopback without the user/pass
   pair, so protect LAN-exposed listeners with credentials.
+
+---
 
 ## Uninstalling
 
@@ -485,6 +554,8 @@ uci commit firewall
 #   opkg: the "src/gz trusttunnel" line in /etc/opkg/customfeeds.conf,
 #         plus the key files under /etc/opkg/keys/
 ```
+
+---
 
 ## Settings reference
 
@@ -565,6 +636,8 @@ configuration.
 Rule entries in every list accept a plain domain, a `*.domain` wildcard,
 an IP address, an `IP:port` pair, or a CIDR range.
 
+---
+
 ## Where things live
 
 - `/etc/config/trusttunnel` — your settings; survives package updates
@@ -574,6 +647,8 @@ an IP address, an `IP:port` pair, or a CIDR range.
 - `/var/etc/trusttunnel/` — generated files (`settings.tsv`,
   `client.toml`, `endpoint.pem`, `device`, `tun_since`); overwritten
   whenever the service starts or settings are applied — never edit them
+
+---
 
 ## Notes and caveats
 
@@ -598,6 +673,8 @@ an IP address, an `IP:port` pair, or a CIDR range.
 - **Key rotation.** The signing keys rotate; run the installer once more
   to refresh the copies on the router.
 
+---
+
 ## Acknowledgements
 
 - [`TrustTunnel/TrustTunnel`](https://github.com/TrustTunnel/TrustTunnel)
@@ -609,6 +686,8 @@ an IP address, an `IP:port` pair, or a CIDR range.
 - [`iamvladdy/trusttunnel-openwrt`](https://github.com/iamvladdy/trusttunnel-openwrt)
   — a netifd-based implementation that pairs the client with
   [podkop](https://podkop.net) for selective routing
+
+---
 
 ## License
 
