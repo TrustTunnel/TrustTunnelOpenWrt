@@ -1,10 +1,10 @@
-# AGENTS.md — trusttunnel-openwrt
+# AGENTS.md — TrustTunnelOpenWrt
 
 Guidance for AI agents and human contributors working in this repository.
 
 ## What this project is
 
-`trusttunnel-openwrt` is an independent implementation of an OpenWrt package
+`TrustTunnelOpenWrt` is an independent implementation of an OpenWrt package
 set for the [TrustTunnel](https://github.com/TrustTunnel/TrustTunnel) client:
 
 - `luci-app-trusttunnel` — a noarch LuCI application: a procd service, a
