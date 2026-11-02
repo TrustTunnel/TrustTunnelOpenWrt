@@ -163,10 +163,9 @@ Device-specific quirks usually reproduce only with that context.
 - [`TrustTunnel/TrustTunnelClient`](https://github.com/TrustTunnel/TrustTunnelClient)
   — the client binary (Apache-2.0)
 - [`NooBiToo/TrustTunnelOpenWrt`](https://github.com/NooBiToo/TrustTunnelOpenWrt)
-  — the LuCI package that inspired this implementation
+  — a conceptually similar LuCI package with selective domain-list bypass
 - [`iamvladdy/trusttunnel-openwrt`](https://github.com/iamvladdy/trusttunnel-openwrt)
-  — a netifd-based implementation that pairs the client with
-  [podkop](https://podkop.net) for selective routing
+  — a netifd-based implementation with selective routing
 
 ---
 
