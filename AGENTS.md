@@ -692,7 +692,7 @@ The rules:
 - Pin the vendor tarball explicitly: `PKG_VERSION` plus the per-family
   `PKG_HASH` values, bumped together from the vendor's release API.
 - Keep the `PKG_VERSION` fallback in the app, runtime and diagnostics
-  Makefiles equal to the last released version (currently `1.0.35`).
+  Makefiles equal to the last released version (currently `1.0.0`).
 - Prefer the OpenWrt base packages. The runtime depends only on
   `+trusttunnel-client +ip-full +nftables`. The app depends only on
   `+trusttunnel +luci-base +curl +ucode-mod-math`. Add a dependency only
@@ -741,7 +741,7 @@ dependencies keep the package set small and predictable.
 
 - `PKG_VERSION` comes from `git describe --tags --abbrev=0` (tag `vX.Y.Z`
   → version `X.Y.Z`), falling back to the last released version (currently
-  `1.0.35`). The fallback must track the latest release — the release
+  `1.0.0`). The fallback must track the latest release — the release
   workflow fails a tag build whose artifact does not carry the tag.
 - `LUCI_DEPENDS:=+trusttunnel +luci-base +curl +ucode-mod-math`.
   **Do not add `trusttunnel-client`, `ip-full`, `nftables`, `kmod-tun` or
