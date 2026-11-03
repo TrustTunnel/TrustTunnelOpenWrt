@@ -1,0 +1,9 @@
+# The SHA-256 of the vendor client tarballs, one line per CPU family.
+#
+# This fixture pins the Makefile's PKG_HASH parsing. When the vendor
+# version changes, update this file together with the Makefile hashes.
+x86_64 791f00819e0242b2c38a04bb1403c30aa32701efbcdb059fbc3a6793ff0a45b5
+aarch64 9fb9da8e83963f1f87dd47b7a18de729844841a304a783f6a773c353abac2169
+armv7 402ee1a8c8d151839428c52c011376c15f88b20e75252fbad49a30d4b71a9a37
+mips a4785541b3e5eb9cfa78af2ca650bc963f5aeaca67c1449144f4d7919a63ae35
+mipsel 5ecef0020984534a954a505289b76823abaed589f1163b4f543e65c2269b326e

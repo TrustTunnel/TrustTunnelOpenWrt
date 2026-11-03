@@ -12,6 +12,10 @@
 # older client only if the feed still serves it), and the publish step
 # must verify an older version installs — a version filter would silently
 # drop the history without failing any other check.
+#
+# The client package is prebuilt, so the client matrix must use the
+# shared packager image, not the SDK. The packager image is built once
+# before the matrix and passed to every row.
 . "$(dirname "$0")/lib.sh"
 
 WF=.github/workflows/release.yml
@@ -45,10 +49,34 @@ assert_contains "$(job_body build)" "!startsWith(github.ref, 'refs/tags/client-v
 # app instead.
 assert_contains "$(job_body verify-integration)" "!startsWith(github.ref, 'refs/tags/client-v')" "verify-integration skips client-v* tags"
 
-# The client matrix must assert the built package against the tag — the
-# mirror of the app's own tag-matching assertion, scoped to client tags.
-assert_contains "$(job_body build-client)" "Assert the client version matches the tag" "build-client asserts the client version against a client-v* tag"
-assert_contains "$(job_body build-client)" 'GITHUB_REF_NAME#client-v' "build-client derives the expected version from the tag"
+# The client matrix must assert the generated package against the tag —
+# the mirror of the app's own tag-matching assertion, scoped to client
+# tags.
+assert_contains "$(job_body package-client)" "Assert the client version matches the tag" "package-client asserts the client version against a client-v* tag"
+assert_contains "$(job_body package-client)" 'GITHUB_REF_NAME#client-v' "package-client derives the expected version from the tag"
+
+# The prebuilt client must not run the SDK. The packager image is built
+# once and every matrix row reuses it.
+assert_contains "$(job_body prepare-packager)" "tests/release/packager.Dockerfile" "prepare-packager builds the packager image"
+assert_contains "$(job_body prepare-packager)" "name: package-client-packager" "prepare-packager uploads the shared image"
+assert_contains "$(job_body package-client)" "needs: [gate, prepare-packager]" "package-client waits for the packager image"
+assert_contains "$(job_body package-client)" "package-client-packager" "package-client downloads the shared image"
+assert_contains "$(job_body package-client)" "docker load -i packager.tar.gz" "package-client loads the shared image"
+assert_contains "$(job_body package-client)" "package-client.sh" "package-client checks the packager script in the recipe"
+assert_contains "$(job_body package-client)" "packager.Dockerfile" "package-client checks the packager image in the recipe"
+assert_contains "$(job_body publish-repo)" "needs: [build, prepare-packager, package-client, verify-integration]" "publish-repo waits for the packager image"
+assert_contains "$(job_body publish-repo)" "staging/releases/25.12.5/package-client.sh" "publish-repo stores the packager script"
+assert_contains "$(job_body publish-repo)" "staging/releases/22.03.7/package-client.sh" "publish-repo stores the packager script for opkg"
+if printf '%s\n' "$(job_body package-client)" | grep -q "openwrt/gh-action-sdk"; then
+	_tt_fail "package-client does not run the SDK"
+else
+	_tt_pass "package-client does not run the SDK"
+fi
+if printf '%s\n' "$(job_body package-client)" | grep -q "restricted-feeds.sh"; then
+	_tt_fail "package-client does not clone the SDK feeds"
+else
+	_tt_pass "package-client does not clone the SDK feeds"
+fi
 
 # The publish job must run when the app build and the integration run
 # were skipped (its needs then include skipped jobs), but must not run
