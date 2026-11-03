@@ -11,7 +11,7 @@ configures on the router:
   the apk feeds for OpenWrt 25.12+, and the `22.03.7` tree holds the
   opkg feeds for 22.03–24.10. Each tree holds per-architecture
   `trusttunnel` feed directories with the signed index, the public
-  signing key and every released version of the packages. Repository
+  signing key and the retained versions of the packages. Repository
   URLs for the router (the arch is the package architecture of the
   device):
   `https://trusttunnel.github.io/TrustTunnelOpenWrt/releases/25.12.5/packages/<arch>/trusttunnel/packages.adb`
@@ -22,18 +22,18 @@ The feeds carry the four packages of the project: the LuCI app, the
 runtime, the client binaries and the optional diagnostics add-on. The app
 depends on the runtime, and the runtime depends on the client package.
 
-The repositories are cumulative: they serve every released version of
-the LuCI app, with the latest release (`__TAG__`) on top of all earlier
-ones. You can pin or downgrade to an older version at any time. The same
-holds for the client: every released `trusttunnel-client` build stays in
-the feeds. The package managers install the highest version unless a
-router pins an older one. A client update can arrive on its own as a
+The feeds keep the newest `__KEEP__` releases, because the GitHub Pages
+site has a hard 1 GB limit. You can pin or downgrade to a version in that
+set. The package managers install the highest version unless a router
+pins an older one. A client update can arrive on its own as a
 `client-v*` release. The repositories are then re-published with the new
-client, while the LuCI app stays at its current version.
+client, while the LuCI app stays at its current version. The newest
+LuCI app release is always kept, so every new install works.
 
-The GitHub
+The latest release is `__TAG__`. The GitHub
 [releases](https://github.com/TrustTunnel/TrustTunnelOpenWrt/releases)
-carry the same package files for manual download.
+carry every release's package files. An older version outside the feed
+is still downloadable there.
 
 ## Installing
 
@@ -59,7 +59,7 @@ binary while the app stays at its installed version.
 
 ## Pinning the client
 
-Every released client build stays installable, so a router can hold a
+Every retained client build stays installable, so a router can hold a
 specific `trusttunnel-client` version:
 
 ```sh
@@ -74,5 +74,7 @@ opkg flag hold trusttunnel-client
 ```
 
 Replace `<arch>` with the package architecture of the device (`x86_64`,
-`aarch64_cortex-a53`, `mipsel_24kc`, ...). Replace the version with any
-version that the feed lists.
+`aarch64_cortex-a53`, `mipsel_24kc`, ...). Replace the version with a
+version that the feed lists. An older version outside the retained set
+is still on its GitHub release. Download the `.apk` or `.ipk` from there
+and install it locally.

@@ -13,8 +13,9 @@ updates together with the package. A client-only release of the
 repositories can also update the binary on its own.
 `/etc/config/trusttunnel` survives untouched.
 
-Every released client version stays in the repositories. You can pin a
-specific build instead of taking the newest one:
+Each feed keeps the newest three releases, because the published site
+has a hard 1 GB limit. The newest LuCI app release is always kept. You
+can pin a specific client build that the feed still lists:
 
 ```sh
 # OpenWrt 25.12+ — the constraint is kept across upgrades:
@@ -27,5 +28,7 @@ opkg flag hold trusttunnel-client
 ```
 
 `<arch>` is the package architecture of the device (`x86_64`,
-`aarch64_cortex-a53`, `mipsel_24kc`, ...). The version can be any one
-that the feed lists.
+`aarch64_cortex-a53`, `mipsel_24kc`, ...). The version must be one that
+the feed lists. An older version outside the retained set is still on
+its GitHub release: download the `.apk` or `.ipk` from there and install
+it locally.

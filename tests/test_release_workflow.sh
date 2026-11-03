@@ -3,15 +3,17 @@
 # client-v* tag must publish a new client without rebuilding the LuCI app
 # or re-running the full integration suite, and the publish step must not
 # be blocked by those skipped jobs. The failure modes are silent and
-# expensive (a broken gate fails late in a 37-arch matrix, or publishes a
+# expensive (a broken gate fails late in a 39-arch matrix, or publishes a
 # release whose packages do not match its tag), so the workflow structure
 # is a contract, like the dependency declarations in test_deps.sh.
 #
-# It also pins the client-version history contract: the repository
-# assembly must keep EVERY prior client version (a router can pin an
-# older client only if the feed still serves it), and the publish step
-# must verify an older version installs — a version filter would silently
-# drop the history without failing any other check.
+# It also pins the feed retention contract: the Pages site has a hard
+# 1 GB limit, so the feed keeps only the newest TT_FEED_KEEP_RELEASES
+# releases and the publish step refuses to deploy a larger tree. The
+# selector always keeps the newest v* app release; a run of client-only
+# releases must not push the app out of the feed. The selector's own
+# behavior is covered by test_select_releases.sh. An older retained
+# client must still be installable, so the pin verification stays.
 #
 # The client package is prebuilt, so the client matrix must use the
 # shared packager image, not the SDK. The packager image is built once
@@ -99,12 +101,17 @@ assert_contains "$(job_body publish-repo)" 'grep -q "$CLIENT_VERSION"' "the root
 assert_contains "$(job_body publish-repo)" "Upload the client files to the client GitHub release" "publish-repo uploads a client-only release"
 assert_contains "$(job_body publish-repo)" "startsWith(github.ref, 'refs/tags/v')" "the app+client upload step is scoped to v* tags"
 
-# The client history is cumulative: every prior client version is merged
-# into the repositories, not only the version the current build ships.
-# The dropped filter printed "skipping prior client <ver>"; its return
-# would silently drop the history (no other check fails), so pinning an
-# older client would 404 from the feed.
-assert_exit 1 "the prior client merge is not version-filtered" grep -q "skipping prior client" "$WF"
+# The feed retention cap: the Pages site has a hard 1 GB limit, so the
+# publish job keeps only the newest TT_FEED_KEEP_RELEASES releases. The
+# selector call, the cap constant and the guards are the workflow half
+# of the contract; test_select_releases.sh covers the selection itself.
+assert_contains "$(job_body publish-repo)" 'TT_FEED_KEEP_RELEASES: "3"' "publish-repo sets the retention cap"
+assert_contains "$(job_body publish-repo)" "tests/release/select-releases.sh" "publish-repo uses the retention selector"
+assert_contains "$(job_body publish-repo)" "gh api --paginate" "publish-repo lists every release, not the newest 100"
+assert_contains "$(job_body publish-repo)" '[ "$mode" = app ]' "the selector's app-only mode has its own download branch"
+assert_contains "$(job_body publish-repo)" 'TT_FEED_MAX_MB: "900"' "publish-repo caps the assembled tree below the Pages limit"
+assert_contains "$(job_body publish-repo)" "du -sm staging/releases" "publish-repo checks the assembled tree size"
+assert_contains "$(job_body publish-repo)" "trusttunnel-client-*.apk' | wc -l" "publish-repo checks the client-version count"
 
 # The publish step must exercise the pinning contract: discover the
 # newest older client version in the assembled x86_64 feeds, then install

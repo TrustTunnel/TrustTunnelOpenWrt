@@ -130,6 +130,11 @@ Run the installer again to update the package and the client binary, and
 to refresh the signing keys. The installer does not touch
 `/etc/config/trusttunnel`.
 
+Each feed keeps the newest three releases, because the published site
+has a hard 1 GB limit. The newest LuCI app release is always kept.
+Older versions stay on their GitHub releases. [UPDATING.md](UPDATING.md)
+shows how to install one of them.
+
 The Diagnose and Tools pages are an optional add-on. Install the
 `luci-app-trusttunnel-diagnostics` package separately from the same
 repository: `apk add luci-app-trusttunnel-diagnostics` on OpenWrt 25.12+,
