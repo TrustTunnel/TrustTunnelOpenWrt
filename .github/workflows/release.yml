@@ -2,7 +2,7 @@
 # package repositories the installer configures on routers.
 #
 # A tag push (v*) or a manual workflow_dispatch run produces:
-#   - the noarch LuCI packages and the per-architecture client builds,
+#   - the noarch LuCI packages and the per-architecture client packages,
 #   - per-architecture signed repositories in the official OpenWrt layout
 #     (releases/<version>/packages/<arch>/trusttunnel/ on the site: the
 #     apk tree 25.12.5 serves OpenWrt 25.12+, the opkg tree 22.03.7
@@ -232,9 +232,50 @@ jobs:
           # again while reporting itself.
           if-no-files-found: ignore
 
+  # The client package is prebuilt, so the client matrix must not run
+  # the SDK: every SDK job clones the feed and builds the package's
+  # runtime dependencies (kmod-tun and ca-bundle) for its architecture.
+  # This job builds one small packager image and exports it as an
+  # artifact. The client matrix reuses the image and packages its own
+  # architecture. The image is pinned by its base digest in the
+  # Dockerfile, and the packager script reads the Makefile.
+  prepare-packager:
+    name: Prepare the client packager image
+    runs-on: ubuntu-latest
+    needs: [gate]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      # The image is small, but the base pull and the apk install still
+      # use the network; retry transient registry and mirror failures.
+      - name: Build the packager image
+        run: |
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+            if docker build -f tests/release/packager.Dockerfile -t trusttunnel-packager tests/release; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+            sleep 5
+          done
+
+      - name: Export the packager image
+        run: docker save trusttunnel-packager | gzip -1 > packager.tar.gz
+
+      - name: Upload the packager image
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-client-packager
+          path: packager.tar.gz
+          if-no-files-found: error
+
   # The client ships one binary per device architecture: the Makefile
   # selects the vendor build (armv7l/armv8l/mips/...) from the target
-  # arch, so every OpenWrt target string in the matrix must be built
+  # arch, so every OpenWrt target string in the matrix must be packaged
   # explicitly. apk matches the package arch against the device's own
   # arch byte-exactly, and opkg does the same for the feed it installs
   # from — hence one signed feed directory per arch
@@ -242,15 +283,15 @@ jobs:
   # ipk row list is the apk list minus aarch64_cortex-a76 (that target
   # only exists on 25.12-era SDKs).
   # Every row first checks whether the same version is already published
-  # on the site and only runs the SDK build for missing packages: the
+  # on the site and only runs the packager for missing packages: the
   # client version comes from the Makefile, not the release tag, so a
   # LuCI-only release must not repackage the unchanged client.
-  build-client:
-    name: Build trusttunnel-client (${{ matrix.arch }})
+  package-client:
+    name: Package trusttunnel-client (${{ matrix.arch }})
     runs-on: ubuntu-latest
-    needs: [gate]
+    needs: [gate, prepare-packager]
     strategy:
-      # One failed arch must not cancel the rest: every build is needed
+      # One failed arch must not cancel the rest: every package is needed
       # for its repository directory.
       fail-fast: false
       matrix:
@@ -376,14 +417,14 @@ jobs:
       - name: Check out the feed
         uses: actions/checkout@v7
 
-      # Same reason as the build job: the SDK action chowns the mount
-      # paths before starting its container, so the artifacts directory
-      # must exist already.
+      # The packager writes the package into dist/ and its log into
+      # out/logs/. The reuse path writes only dist/, but both paths must
+      # find their directories ready.
       - name: Prepare the artifacts directory
-        run: mkdir -p out
+        run: mkdir -p out dist
 
-      # Skip the SDK build when the same package is already published:
-      # rebuilding would only reproduce the identical binaries. The client
+      # Skip the packager when the same package is already published:
+      # repackaging would only reproduce the identical binaries. The client
       # version comes from the Makefile, NOT from the release tag — a
       # LuCI-only release must not repackage the unchanged client. The
       # version is read from PKG_VERSION/PKG_RELEASE; the apk and ipk file
@@ -393,10 +434,8 @@ jobs:
       # is carried in the repositories alongside the packages, so a recipe
       # change without a version bump also forces a rebuild instead of
       # silently reusing a stale artifact. Anything missing (new version,
-      # new arch, first publish, recipe drift) falls through to the SDK
-      # build below. NOTE: the SDK pins in this workflow are the other
-      # half of the recipe — when they change, bump PKG_RELEASE so the
-      # reuse check rebuilds.
+      # new arch, first publish, recipe drift) falls through to the
+      # packager below.
       - name: Reuse the published client package when the version is unchanged
         id: reuse
         run: |
@@ -421,22 +460,35 @@ jobs:
           if ! curl -fsSL -o "$tmp" "$url" 2>/dev/null; then
             rm -f "$tmp"
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "No published ${pkg} for ${{ matrix.arch }}; building it."
+            echo "No published ${pkg} for ${{ matrix.arch }}; packaging it."
             exit 0
           fi
           # The published artifact is reusable only when the recipe that
-          # produced it matches the current Makefile. The recipe copy
-          # lives at the release-tree root (one per tree, shared by every
-          # architecture — not inside the feed directories).
-          mkurl="https://trusttunnel.github.io/TrustTunnelOpenWrt/releases/${{ matrix.version }}/trusttunnel-client.Makefile"
-          tmpmk="$(mktemp)"
-          if curl -fsSL -o "$tmpmk" "$mkurl" 2>/dev/null \
-            && diff -q "$tmpmk" packages/trusttunnel-client/Makefile >/dev/null; then
+          # produced it matches the current recipe. The recipe copies
+          # live at the release-tree root (one per tree, shared by every
+          # architecture — not inside the feed directories). The recipe
+          # is the Makefile plus the packager script and its image
+          # definition.
+          recipe_ok=1
+          for recipe in trusttunnel-client.Makefile package-client.sh packager.Dockerfile; do
+            case "$recipe" in
+              trusttunnel-client.Makefile) local_file=packages/trusttunnel-client/Makefile ;;
+              package-client.sh) local_file=tests/release/package-client.sh ;;
+              packager.Dockerfile) local_file=tests/release/packager.Dockerfile ;;
+            esac
+            rtmp="$(mktemp)"
+            rurl="https://trusttunnel.github.io/TrustTunnelOpenWrt/releases/${{ matrix.version }}/${recipe}"
+            if ! curl -fsSL -o "$rtmp" "$rurl" 2>/dev/null || ! diff -q "$rtmp" "$local_file" >/dev/null; then
+              recipe_ok=0
+            fi
+            rm -f "$rtmp"
+          done
+          if [ "$recipe_ok" -eq 1 ]; then
             if [ "${{ matrix.ext }}" = apk ]; then
               # The repository stores the apk without the arch suffix; the
               # -<arch> marker is added back for the release assets, and
               # the ARCH-* marker lets the repository assembly discover
-              # the built architectures.
+              # the packaged architectures.
               mv "$tmp" "dist/${pkg%.apk}-${{ matrix.arch }}.apk"
               printf '%s\n' "${{ matrix.arch }}" > "dist/ARCH-${{ matrix.arch }}"
             else
@@ -447,65 +499,36 @@ jobs:
           else
             rm -f "$tmp"
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "The published ${pkg} for ${{ matrix.arch }} was built from a different recipe; rebuilding."
-          fi
-          rm -f "$tmpmk"
-
-      # trusttunnel-client needs only the base feed (its kmod-tun and
-      # ca-bundle deps live there; the luci and packages clones would be
-      # dead weight on every one of the 37 arch jobs). Same mechanism
-      # and pin-maintenance rule as the build job's restriction step.
-      - name: Restrict the SDK feeds
-        if: steps.reuse.outputs.present != 'true'
-        run: |
-          feeds="$(sh tests/integration/restricted-feeds.sh ${{ matrix.version }} client)"
-          printf 'EXTRA_FEEDS=%s\n' "$feeds" >> "$GITHUB_ENV"
-
-      - name: Build trusttunnel-client with the SDK
-        if: steps.reuse.outputs.present != 'true'
-        uses: openwrt/gh-action-sdk@v7
-        env:
-          # Release SDK for the same determinism reason as the build job.
-          VERSION_PATH: ${{ matrix.version == '25.12.5' && 'releases/25.12.5' || 'releases/22.03.7' }}
-          ARCH: ${{ matrix.arch }}-${{ matrix.version }}
-          FEEDNAME: ttowrt
-          # Replaces the default feeds with the base-only set from the
-          # step above (see its comment).
-          NO_DEFAULT_FEEDS: "1"
-          FEED_DIR: ${{ github.workspace }}
-          ARTIFACTS_DIR: ${{ github.workspace }}/out
-          PACKAGES: trusttunnel-client
-
-      - name: Collect the built client package
-        if: steps.reuse.outputs.present != 'true'
-        run: |
-          mkdir -p dist
-          if [ "${{ matrix.ext }}" = apk ]; then
-            # The SDK output is nested (out/bin/packages/<target>/<feed>/):
-            # the find must recurse. The apk file name carries no arch.
-            f="$(find out/bin/ -name 'trusttunnel-client*.apk' -print -quit)"
-            if [ -z "$f" ]; then
-              echo "::error::no trusttunnel-client apk was built for ${{ matrix.arch }}"
-              exit 1
-            fi
-            # apk reconstructs package file names from the metadata, so
-            # the arch suffix exists only to keep the 20 uploads apart
-            # when they are merged later. The marker lets the repository
-            # assembly discover the built architectures.
-            cp "$f" "dist/$(basename "$f" .apk)-${{ matrix.arch }}.apk"
-            printf '%s\n' "${{ matrix.arch }}" > "dist/ARCH-${{ matrix.arch }}"
-          else
-            f="$(find out/bin/ -name 'trusttunnel-client*.ipk' -print -quit)"
-            if [ -z "$f" ]; then
-              echo "::error::no trusttunnel-client ipk was built for ${{ matrix.arch }}"
-              exit 1
-            fi
-            # The ipk name already carries the arch, so a plain copy is
-            # enough to keep the merged feed unambiguous.
-            cp "$f" dist/
+            echo "The published ${pkg} for ${{ matrix.arch }} was packaged from a different recipe; rebuilding."
           fi
 
-      # Both paths — the SDK build and the published-package reuse — must
+      - name: Download the packager image
+        if: steps.reuse.outputs.present != 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: package-client-packager
+
+      - name: Load the packager image
+        if: steps.reuse.outputs.present != 'true'
+        run: docker load -i packager.tar.gz
+
+      # The packager reads the Makefile and downloads the vendor tarball.
+      # The image has the apk tools and the packager script. No SDK or
+      # feed clone runs here. The script writes the final artifact names
+      # the upload and the repository assembly expect.
+      - name: Build the client package
+        if: steps.reuse.outputs.present != 'true'
+        run: |
+          set -o pipefail
+          mkdir -p out/logs
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            -e TT_CLIENT_OUT_DIR=/work/dist \
+            trusttunnel-packager build "${{ matrix.ext }}" "${{ matrix.arch }}" \
+            2>&1 | tee "out/logs/package-client-${{ matrix.arch }}.log"
+
+      # Both paths — the packager and the published-package reuse — must
       # leave the expected package in dist/: the upload and the repository
       # assembly consume exactly what this step asserts.
       - name: Assert the client package is present
@@ -564,7 +587,7 @@ jobs:
   # artifacts being released, not any pre-built ones.
   verify-integration:
     name: Verify the release with the integration tests (${{ matrix.pm }})
-    needs: [build, build-client]
+    needs: [build, package-client]
     # Client-only releases skip the full end-to-end suite on purpose: the
     # app is unchanged (it passed the suite at its own release), the PR
     # that bumped the client already ran the suite against this exact
@@ -647,7 +670,7 @@ jobs:
   # package managers rely on.
   publish-repo:
     name: Assemble and publish the repositories
-    needs: [build, build-client, verify-integration]
+    needs: [build, prepare-packager, package-client, verify-integration]
     # Tag pushes publish a release; dispatch runs publish the repositories
     # and the site. Plain branch CI runs never publish anything. The gate
     # job already refuses non-main dispatch runs; the condition is
@@ -657,7 +680,7 @@ jobs:
     # client-v* run through: its build and verify-integration jobs are
     # SKIPPED, and a job whose needs include a skipped job does not run
     # under the default success() rule — but a skipped dependency must
-    # not block the publish, while a FAILED build-client (or anything
+    # not block the publish, while a FAILED package-client (or anything
     # else) still must.
     if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master')) }}
     runs-on: ubuntu-latest
@@ -712,9 +735,9 @@ jobs:
         run: |
           mkdir -p staging/prior-apk staging/prior-opkg
           # The release being built is excluded — its freshly built
-          # packages are staged by the build jobs. On a dispatch run
-          # the ref is a branch name, which matches no release, so
-          # every release is kept.
+          # packages are staged by the build and packaging jobs. On a
+          # dispatch run the ref is a branch name, which matches no
+          # release, so every release is kept.
           exclude="$GITHUB_REF_NAME"
           # Every tag is iterated — v* (app+client) and client-v*
           # (client only) alike: the prior clients merge like every
@@ -771,7 +794,7 @@ jobs:
 
           # Prior releases first, so the freshly built packages win on a
           # same-name collision (a dispatch run at the latest tag). The
-          # arch comes from the -<arch> marker the build appended to the
+          # arch comes from the -<arch> marker the packager appended to the
           # asset name. The asset name is
           # trusttunnel-client-<ver>-r<rev>-<arch>.apk: the vendor
           # version is dotted digits (no dashes) and the revision is
@@ -806,8 +829,8 @@ jobs:
             esac
           done
 
-          # The built architectures are discovered from the ARCH-*
-          # markers written by build-client — the matrix lives in the
+          # The packaged architectures are discovered from the ARCH-*
+          # markers written by package-client — the matrix lives in the
           # artifacts, not in a second copy in this job.
           for m in staging/apk-pkgs/ARCH-*; do
             [ -e "$m" ] || { echo "::error::no client artifacts for any architecture"; exit 1; }
@@ -827,10 +850,13 @@ jobs:
           done
 
           # The package recipe travels with the release tree — one copy
-          # per tree, not per architecture (the client Makefile is shared
-          # by every arch): the next release's reuse check diffs it
-          # against the current Makefile before skipping a rebuild.
+          # per tree, not per architecture (the client Makefile, the
+          # packager script and its image definition are shared by every
+          # arch): the next release's reuse check diffs them against the
+          # current files before skipping a rebuild.
           cp packages/trusttunnel-client/Makefile staging/releases/25.12.5/trusttunnel-client.Makefile
+          cp tests/release/package-client.sh staging/releases/25.12.5/package-client.sh
+          cp tests/release/packager.Dockerfile staging/releases/25.12.5/packager.Dockerfile
 
           # The noarch LuCI app packages land in every architecture
           # directory — current and prior versions alike, so the whole
@@ -934,9 +960,12 @@ jobs:
           done
           # The package recipe travels with the release tree — one copy
           # per tree, not per architecture: the next release's reuse
-          # check diffs it against the current Makefile before skipping a
+          # check diffs the Makefile, the packager script and its image
+          # definition against the current files before skipping a
           # rebuild.
           cp packages/trusttunnel-client/Makefile staging/releases/22.03.7/trusttunnel-client.Makefile
+          cp tests/release/package-client.sh staging/releases/22.03.7/package-client.sh
+          cp tests/release/packager.Dockerfile staging/releases/22.03.7/packager.Dockerfile
 
           # The canonical index generator, fetched at run time so the
           # pipeline always uses the tooling of the OpenWrt release it
@@ -1292,7 +1321,7 @@ jobs:
             # The tree page lists the assembled architecture directories,
             # each linking STRAIGHT to its feed page (the arch level only
             # holds a redirect stub) — generated from the directories
-            # themselves, so there is no second copy of the build-client
+            # themselves, so there is no second copy of the package-client
             # matrix to keep in sync.
             : > "$arch_list"
             for d in "$t/packages/"*/; do

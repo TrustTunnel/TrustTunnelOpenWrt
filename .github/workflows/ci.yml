@@ -140,6 +140,7 @@ jobs:
             packages/trusttunnel/root/etc/hotplug.d/net/40-trusttunnel \
             tests/test_deps.sh \
             tests/test_hotplug.sh \
+            tests/test_package_client.sh \
             tests/test_release_workflow.sh \
             tests/test_tt_uci.sh \
             tests/test_uci_defaults.sh \
@@ -148,6 +149,7 @@ jobs:
             tests/integration/ipk-arch.sh \
             tests/integration/build-sdk.sh \
             tests/integration/restricted-feeds.sh \
+            tests/release/package-client.sh \
             tests/install-harness.sh \
             tests/backend/test_backend_contract.sh \
             tests/gui/run.sh \

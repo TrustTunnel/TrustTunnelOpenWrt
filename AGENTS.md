@@ -70,6 +70,7 @@ user-facing description.
 │   ├── test_*.sh               # the suite's tests
 │   ├── fixtures/               # records fixtures and the schema key list
 │   ├── tools/                  # schema key regeneration helper
+│   ├── release/                # client packager image and package script
 │   ├── license-clean/          # upstream-blob license gate
 │   ├── backend/                # dockerized backend contract test and goldens
 │   ├── gui/                    # Playwright suite, stub server and dev loop
@@ -599,9 +600,11 @@ dependencies stay installed on purpose.
 - **Test file conventions**: every test file starts with a header comment
   stating the contract it pins, and explains the WHY of tricky assertions.
 - **Fixtures and test data**:
-  `tests/fixtures/records/{minimal,full,bypass}.tsv` and
+  `tests/fixtures/records/{minimal,full,bypass}.tsv`,
   `tests/fixtures/schema-keys.txt` (regenerate with
-  `sh tests/tools/dump-schema-keys.sh`).
+  `sh tests/tools/dump-schema-keys.sh`) and
+  `tests/fixtures/client-hashes.txt` (the vendor tarball hashes; update
+  it with the Makefile on a vendor bump).
 - **Mocking**: tests stub external commands (ip, nft, uci, logger, curl,
   logread) and honor `TT_*` overrides. See `test_routing.sh` (`TT_IP`,
   `TT_NFT`, `TT_LIBDIR`) and `test_uci_defaults.sh` (`TT_UCD_SCRIPT`,
@@ -654,6 +657,14 @@ dependencies stay installed on purpose.
       `tests/run.sh`. Every network request in the docker harnesses is
       retried, because transient registry, mirror and lab-net failures must
       not fail a run.
+- **The client packager test** (`tests/test_package_client.sh`) builds
+  the real packager image (`tests/release/packager.Dockerfile`), generates
+  a package for every row of the release client matrix from fake vendor
+  tarballs, and checks each package's fields, files, payload and CPU-family
+  mapping against `packages/trusttunnel-client/Makefile`. It is
+  docker-gated (skip 77) and uses a work directory under `$HOME`, because
+  Docker Desktop on macOS does not share `$TT_TEST_TMP`. The hash fixture
+  pins the Makefile's `PKG_HASH` parsing.
 - **The view-contract gate** (`tests/view-contract.js`) cross-checks the
   views against the backend without a browser: every `rpc.declare` must
   name a registered method that the ACL grants and declare a subset of its
@@ -826,6 +837,11 @@ dependencies keep the package set small and predictable.
 - **CI workflows**: `.github/workflows/ci.yml` holds the contract gates,
   `integration.yml` runs the end-to-end suite on PRs, master pushes and
   manual dispatch, and `release.yml` is the release pipeline below.
+  Name a release job that only packages a prebuilt vendor artifact
+  `package-*`, not `build-*`. The client job is `package-client`. It
+  uses the shared packager image, not the SDK. Keep
+  `tests/test_package_client.sh` in the shell suite, so every generated
+  package stays checked against the Makefile.
 - **Version discipline**: tags drive release contents. The CI rejects tags
   older than the previous tag and packages that do not match the tag.
 
@@ -854,22 +870,34 @@ GitHub release. A mis-triggered run fails before any SDK work starts.
   version from it). `fail-fast: false`. Artifact file names must match
   the tag. The job is skipped on `client-v*` tags, because a client-only
   release does not touch the app.
-- `build-client` — the client package per subtarget arch (the full matrix
-  is in the workflow. The ipk list is the apk list minus
-  `aarch64_cortex-a76`). apk files get an `-<arch>` suffix and an
+- `prepare-packager` — builds the small client packager image
+  (`tests/release/packager.Dockerfile`) and uploads it as the
+  `package-client-packager` artifact. The image carries the pinned apk
+  tools and `tests/release/package-client.sh`. It is built once per run,
+  so the client matrix rows do not each pull an SDK image or clone a
+  feed. The base image is pinned by digest.
+- `package-client` — the client package per subtarget arch (the full
+  matrix is in the workflow. The ipk list is the apk list minus
+  `aarch64_cortex-a76`). Each row reuses the shared packager image and
+  runs `tests/release/package-client.sh`, which reads the Makefile,
+  downloads the vendor tarball and checks its SHA-256. No SDK or feed
+  clone runs here. apk files get an `-<arch>` suffix and an
   `ARCH-<arch>` marker for repository assembly. ipk names already carry
   the arch. A row first checks whether the same version is already
-  published and reuses it when the recipe matches — a copy of the client
-  Makefile travels at each release tree's root
-  (`releases/<version>/trusttunnel-client.Makefile`, one per tree, never
+  published and reuses it when the recipe matches — copies of the client
+  Makefile, the packager script and the packager Dockerfile travel at
+  each release tree's root
+  (`releases/<version>/trusttunnel-client.Makefile`,
+  `releases/<version>/package-client.sh` and
+  `releases/<version>/packager.Dockerfile`, one set per tree, never
   inside the feed directories) for exactly that diff, so a recipe change
   without a version bump still forces a rebuild. On a `client-v*` tag an
-  extra assertion checks the built package carries the tag's version
+  extra assertion checks the generated package carries the tag's version
   (the mirror of the app's tag-matching assertion, scoped to client tags
   because the client version legitimately differs from the app version).
 - `verify-integration` — the same `tests/integration/run.sh` harness the
   PR workflow runs, executed against the packages THIS pipeline just
-  built (no SDK rebuild. The release's own x86-64 artifacts are consumed
+  packaged (no SDK rebuild. The release's own x86-64 artifacts are consumed
   directly). `publish-repo` waits for it, so only a behaviorally tested
   release ships. The job is skipped on `client-v*` tags: the app is
   unchanged (it passed the suite at its own release, and the client-bump
@@ -935,7 +963,7 @@ GitHub release. A mis-triggered run fails before any SDK work starts.
       (`permissions: contents, pages, id-token`).
 
 On a `client-v*` tag the pipeline takes the client-only path. `build`
-and `verify-integration` are skipped, `build-client` runs (and its
+and `verify-integration` are skipped, `package-client` runs (and its
 version assertion), and `publish-repo` assembles the SAME cumulative
 trees with the app packages merged in from the prior releases (there is
 no fresh app build to place), verifies the new client against the
