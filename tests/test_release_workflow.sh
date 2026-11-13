@@ -41,6 +41,14 @@ assert_contains "$wf" '- "client-v*"' "release.yml triggers on client-v* tags"
 # any build starts.
 assert_contains "$(job_body gate)" 'refs/tags/v*|refs/tags/client-v*' "the gate accepts client-v* tag pushes"
 
+# The scheduled update-client workflow pushes the tag with GITHUB_TOKEN
+# and then dispatches this workflow at the tag, because a GITHUB_TOKEN tag
+# push does not start a workflow. The gate must accept that dispatch, or
+# every automatic client release would stop at the gate.
+assert_contains "$(job_body gate)" 'refs/tags/client-v*)' "the gate accepts a dispatch on a client-v* tag"
+assert_contains "$(job_body gate)" 'releasing the client' "the gate names the client dispatch path"
+assert_contains "$(job_body gate)" 'refs/heads/master' "the gate keeps the master dispatch path"
+
 # The app build must be skipped on client-v* tags: its artifact-name
 # assertion derives the version from the tag, and on a client-v* tag it
 # would demand a client version in the app's file name and fail.

@@ -128,7 +128,9 @@ The script does these steps:
 
 Run the installer again to update the package and the client binary, and
 to refresh the signing keys. The installer does not touch
-`/etc/config/trusttunnel`.
+`/etc/config/trusttunnel`. Stable client releases publish automatically:
+the scheduled updater bumps the vendor pin, runs the test suites, and
+publishes a `client-vX.Y.Z` release.
 
 Each feed keeps the newest three releases, because the published site
 has a hard 1 GB limit. The newest LuCI app release is always kept.

@@ -43,7 +43,7 @@ concurrency:
 jobs:
   build-repo:
     name: Build the packages for the integration test (${{ matrix.version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       # One failed build must not cancel the other: both repositories are
@@ -68,8 +68,9 @@ jobs:
       # incremental fetches — several minutes saved per build. The
       # version-keyed cache also carries the package download cache (dl/),
       # which otherwise re-fetches the vendor tarballs on every run.
+      # The action is v6 because v4 targets the deprecated Node 20 runtime.
       - name: Restore the SDK feed cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.tt-sdk-cache/${{ matrix.version }}
           key: sdk-cache-${{ matrix.version }}
@@ -113,7 +114,7 @@ jobs:
   integration:
     name: Integration test (${{ matrix.pm }})
     needs: build-repo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       # One variant's failure must not cancel the other: both results are
@@ -144,7 +145,7 @@ jobs:
       # Both matrix artifacts are merged into one directory; the harness
       # selects the packages of its package manager by file-name globs.
       - name: Download the built repositories
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: repo-*
           path: repos

@@ -64,17 +64,18 @@ specific `trusttunnel-client` version:
 
 ```sh
 # apk (25.12+), version as listed in the feed's index:
-apk add trusttunnel-client=1.1.7-r1
+apk add trusttunnel-client=<version>
 # opkg (22.03–24.10) has no pkg=version syntax: download the versioned
 # ipk from the feed, install it (--force-downgrade is needed only when
 # a newer build is already installed) and hold it across upgrades:
-wget -O /tmp/tt-client.ipk https://trusttunnel.github.io/TrustTunnelOpenWrt/releases/22.03.7/packages/<arch>/trusttunnel/trusttunnel-client_1.1.7-1_<arch>.ipk
+wget -O /tmp/tt-client.ipk https://trusttunnel.github.io/TrustTunnelOpenWrt/releases/22.03.7/packages/<arch>/trusttunnel/trusttunnel-client_<version>_<arch>.ipk
 opkg install --force-downgrade /tmp/tt-client.ipk
 opkg flag hold trusttunnel-client
 ```
 
 Replace `<arch>` with the package architecture of the device (`x86_64`,
-`aarch64_cortex-a53`, `mipsel_24kc`, ...). Replace the version with a
-version that the feed lists. An older version outside the retained set
-is still on its GitHub release. Download the `.apk` or `.ipk` from there
-and install it locally.
+`aarch64_cortex-a53`, `mipsel_24kc`, ...). Replace `<version>` with the
+exact version string from the feed index (`1.2.3-r1` for apk,
+`1.2.3-1` for opkg). An older version outside the retained set is still
+on its GitHub release. Download the `.apk` or `.ipk` from there and
+install it locally.

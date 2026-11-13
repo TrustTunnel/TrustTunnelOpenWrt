@@ -36,9 +36,12 @@
 # release.
 #
 # The `gate` job refuses every run that is not a v* or client-v* tag
-# push; dispatch runs are the sole exception (main only, repositories +
-# site, never a release), so a mis-triggered run fails before any SDK
-# work starts.
+# push. A dispatch run is the sole exception, and it has two accepted
+# forms: master republishes the repositories and the site (never a
+# release), and a client-v* tag runs the client-only release path (the
+# scheduled update-client workflow uses that form after it pushes the
+# tag, because a GITHUB_TOKEN tag push does not start a workflow). Any
+# other trigger fails before any SDK work starts.
 
 name: release
 
@@ -59,25 +62,36 @@ permissions:
   id-token: write
 
 jobs:
-  # The release pipeline runs only on v* and client-v* tag pushes:
-  # dispatch runs are the sole exception — they republish the
-  # repositories and the site, never a GitHub release — and are
-  # restricted to main. The gate blocks any other trigger before an SDK
-  # build starts, so a mis-triggered run fails fast instead of burning
-  # the build matrix.
+  # The release pipeline runs only on v* and client-v* tag pushes. A
+  # dispatch run is the sole exception. On master it republishes the
+  # repositories and the site, never a GitHub release. On a client-v* tag
+  # it runs the client-only release path — the scheduled update-client
+  # workflow pushes the tag with GITHUB_TOKEN and then dispatches this
+  # workflow at the tag, because a GITHUB_TOKEN tag push does not start a
+  # workflow. The gate blocks any other trigger before an SDK build
+  # starts, so a mis-triggered run fails fast instead of burning the build
+  # matrix.
   gate:
     name: Refuse non-tag release runs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - name: Check the run is a v* or client-v* tag push (or a main dispatch)
+      - name: Check the run is a v* or client-v* tag push (or an allowed dispatch)
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ "$GITHUB_REF" != "refs/heads/master" ]; then
-              echo "::error::workflow_dispatch republishes from master only (got ref $GITHUB_REF); refusing the run"
-              exit 1
-            fi
-            echo "Dispatch on master: republishing the repositories and the site (no release)."
-            exit 0
+            case "$GITHUB_REF" in
+              refs/heads/master)
+                echo "Dispatch on master: republishing the repositories and the site (no release)."
+                exit 0
+                ;;
+              refs/tags/client-v*)
+                echo "Dispatch on $GITHUB_REF_NAME: releasing the client."
+                exit 0
+                ;;
+              *)
+                echo "::error::workflow_dispatch runs on master (repositories + site) or a client-v* tag (client release) only (got ref $GITHUB_REF); refusing the run"
+                exit 1
+                ;;
+            esac
           fi
           case "$GITHUB_REF" in
             refs/tags/v*|refs/tags/client-v*)
@@ -96,7 +110,7 @@ jobs:
     # client-v* tag would make that assertion expect a client version in
     # the app's file name and fail).
     if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [gate]
     strategy:
       # One failed build must not cancel the other: every artifact is
@@ -242,7 +256,7 @@ jobs:
   # Dockerfile, and the packager script reads the Makefile.
   prepare-packager:
     name: Prepare the client packager image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [gate]
     steps:
       - name: Check out the repository
@@ -289,7 +303,7 @@ jobs:
   # LuCI-only release must not repackage the unchanged client.
   package-client:
     name: Package trusttunnel-client (${{ matrix.arch }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [gate, prepare-packager]
     strategy:
       # One failed arch must not cancel the rest: every package is needed
@@ -505,7 +519,7 @@ jobs:
 
       - name: Download the packager image
         if: steps.reuse.outputs.present != 'true'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-client-packager
 
@@ -599,7 +613,7 @@ jobs:
     # would skip this job anyway; the explicit condition keeps the
     # intent visible and is robust against that skip being dropped.
     if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       # One variant's failure must not cancel the other: both results are
@@ -635,14 +649,14 @@ jobs:
       # artifact (package-client-<version>-x86_64) land in one directory;
       # the harness selects its package manager's files by name globs.
       - name: Download the LuCI package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-${{ matrix.version }}
           path: repos
           merge-multiple: true
 
       - name: Download the client package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-client-${{ matrix.version }}-x86_64
           path: repos
@@ -684,7 +698,7 @@ jobs:
     # not block the publish, while a FAILED package-client (or anything
     # else) still must.
     if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The Pages site has a hard 1 GB limit. Keep the newest three
     # releases (the 3-5 range stays below the limit with headroom for the
     # site), and refuse to deploy a larger tree. The cap counts release
@@ -705,20 +719,20 @@ jobs:
       # repositories must keep serving.
       - name: Download the LuCI packages (apk)
         if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-25.12.5
           path: staging/luci-apk
 
       - name: Download the LuCI packages (ipk)
         if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-22.03.7
           path: staging/luci-ipk
 
       - name: Download the client packages (apk)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           # One artifact per architecture; merge them into a single tree.
           pattern: package-client-25.12.5-*
@@ -726,7 +740,7 @@ jobs:
           merge-multiple: true
 
       - name: Download the client packages (ipk)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: package-client-22.03.7-*
           path: staging/opkg-pkgs

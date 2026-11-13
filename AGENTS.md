@@ -77,7 +77,9 @@ user-facing description.
 │   ├── gui/                    # Playwright suite, stub server and dev loop
 │   └── integration/            # dockerized end-to-end suite and SDK build
 ├── repo-site/                  # Jekyll templates for the Pages package site
-├── .github/workflows/          # ci.yml, integration.yml, release.yml
+├── .github/
+│   ├── scripts/                # update-client.sh, the vendor pin bump
+│   └── workflows/              # ci.yml, integration.yml, release.yml, update-client.yml
 ├── key-build.pub, opkg-key.pub # public halves of the signing keys
 ├── README.md, CONFIGURATION.md, REFERENCE.md, ...  # user documentation
 └── LICENSE                     # Apache-2.0
@@ -92,7 +94,11 @@ user-facing description.
   are `docker build -q -t tt-ucode-gate -f tests/backend/Dockerfile
   tests/backend` followed by `sh tests/backend/test_backend_contract.sh`,
   `sh tests/install-harness.sh`, `sh tests/gui/run.sh` and
-  `sh tests/integration/run.sh`.
+  `sh tests/integration/run.sh`. The automatic client bump has its own
+  tests: `sh tests/test_update_client.sh` (script behavior) and
+  `sh tests/test_update_client_workflow.sh` (workflow contract).
+  `sh tests/test_workflow_runtime.sh` pins the runner image, the cache
+  and artifact action runtimes and the POSIX grep syntax.
 - **Lint**: shellcheck (`docker run --rm -v "$PWD:/src" -w /src
   koalaman/shellcheck:v0.11.0 -s sh --severity=error <files>`, with the
   file list in `ci.yml`), `sh -n
@@ -150,7 +156,8 @@ user-facing description.
 
 - Before a release, you MUST bump the vendor version and hashes if needed,
   keep the Makefile fallback at the previous release, and tag `vX.Y.Z` on a
-  commit newer than the previous tag.
+  commit newer than the previous tag. The scheduled `update-client`
+  workflow owns the client pin; an app release still follows this rule.
 
 ## Code Guidelines
 
@@ -562,6 +569,10 @@ dependencies stay installed on purpose.
 - **Shell**: POSIX `/bin/sh` everywhere, shellcheck-clean at error
   severity. Use `set -u` where safe — never in `uci-export`:
   `/lib/functions.sh` reads uninitialized variables and dies under it.
+  Use POSIX bracket expressions for word boundaries in CI shell
+  (`(^|[^[:alnum:]_])`), never the BSD `[[:<:]]` and `[[:>:]]` classes:
+  GNU grep rejects them with `Invalid character class name`, and the gate
+  then silently passes.
 - **Comments**: keep the explanatory header comments. This codebase
   documents contracts in comments and in test headers, and the CI gates
   treat several of those as the specification.
@@ -666,6 +677,20 @@ dependencies stay installed on purpose.
   docker-gated (skip 77) and uses a work directory under `$HOME`, because
   Docker Desktop on macOS does not share `$TT_TEST_TMP`. The hash fixture
   pins the Makefile's `PKG_HASH` parsing.
+- **The client updater tests**: `tests/test_update_client.sh` uses fake
+  vendor tarballs and an assets TSV. It asserts that the bump rewrites only
+  the pin, the five Makefile hashes and the five fixture lines, that a
+  second run is a no-op, that `--dry-run` writes nothing, that a stale
+  fixture is repaired without touching the Makefile, and that a missing
+  family, a bad digest, a malformed version or a tarball without
+  `LICENSE` changes nothing. It reads the Makefile through
+  `tests/release/package-client.sh`, the parser the updater and the
+  release pipeline share.
+  `tests/test_update_client_workflow.sh` pins the scheduled workflow
+  structure: the schedule, the master guard, the permissions, the
+  automation branch, the integration wait, the tag, the release dispatch,
+  the missing-release recovery, the fixture repair, and the absence of a
+  repository secret.
 - **The view-contract gate** (`tests/view-contract.js`) cross-checks the
   views against the backend without a browser: every `rpc.declare` must
   name a registered method that the ACL grants and declare a subset of its
@@ -780,10 +805,13 @@ dependencies keep the package set small and predictable.
 #### `trusttunnel-client/Makefile`
 
 - Wraps the vendor's per-CPU-family tarballs
-  (`trusttunnel_client-v$(PKG_VERSION)-linux-<family>.tar.gz`, currently
-  `PKG_VERSION:=1.1.7`). On a vendor release, bump `PKG_VERSION` and the
-  per-family `PKG_HASH` values together (digests come from the vendor's
-  release API).
+  (`trusttunnel_client-v$(PKG_VERSION)-linux-<family>.tar.gz`). The pin
+  (`PKG_VERSION` and the five `PKG_HASH` values) is maintained by the
+  scheduled `update-client` workflow and `tests/fixtures/client-hashes.txt`
+  mirrors it. On a manual vendor bump, run `.github/scripts/update-client.sh`
+  instead of editing the hashes by hand; it verifies every digest and the
+  archive layout, then rewrites both files. The vendor release API publishes
+  the digests.
 - `VENDOR_ARCH` maps `$(ARCH_PACKAGES)` (subtarget arch) → vendor family
   (x86_64 / aarch64 / armv7 / mips / mipsel). The `$(error …)` guard is
   wrapped in `ifneq ($(ARCH_PACKAGES),)` because the metadata dump
@@ -837,25 +865,37 @@ dependencies keep the package set small and predictable.
   in `diagnostics.js`.
 - **CI workflows**: `.github/workflows/ci.yml` holds the contract gates,
   `integration.yml` runs the end-to-end suite on PRs, master pushes and
-  manual dispatch, and `release.yml` is the release pipeline below.
+  manual dispatch, `update-client.yml` is the scheduled client updater
+  below, and `release.yml` is the release pipeline below.
+  The workflows pin `runs-on: ubuntu-24.04`, `actions/cache@v6` and
+  `actions/download-artifact@v8`; `tests/test_workflow_runtime.sh`
+  enforces them. The `ci.yml` shell gates use POSIX bracket expressions
+  for word boundaries.
   Name a release job that only packages a prebuilt vendor artifact
   `package-*`, not `build-*`. The client job is `package-client`. It
   uses the shared packager image, not the SDK. Keep
   `tests/test_package_client.sh` in the shell suite, so every generated
   package stays checked against the Makefile.
 - **Version discipline**: tags drive release contents. The CI rejects tags
-  older than the previous tag and packages that do not match the tag.
+  older than the previous tag and packages that do not match the tag. The
+  client tag is `client-v<vendor version>` and its version must equal
+  `PKG_VERSION`. The app tag is `v<app version>` and is independent of the
+  client version.
 
 #### Release pipeline (`.github/workflows/release.yml`)
 
 Triggered by `v*` and `client-v*` tag pushes (both build GitHub
-releases) and `workflow_dispatch` (repos + site only. Plain branch CI
-never publishes).
+releases) and `workflow_dispatch` (repos + site only, or a client-only
+release when dispatched at a `client-v*` tag. Plain branch CI never
+publishes).
 
 The `gate` job runs first and refuses any run that is not a `v*` or
-`client-v*` tag push. `workflow_dispatch` is the sole exception: it must
-run on master and republishes the repositories and the site only, never a
-GitHub release. A mis-triggered run fails before any SDK work starts.
+`client-v*` tag push. `workflow_dispatch` is the sole exception. On
+master it republishes the repositories and the site only, never a GitHub
+release. On a `client-v*` tag it runs the client-only release path; the
+scheduled `update-client` workflow uses that form after it pushes the
+tag, because a `GITHUB_TOKEN` tag push does not start a workflow. A
+mis-triggered run fails before any SDK work starts.
 
 - `build` — the LuCI app packages (`luci-app-trusttunnel` and the
   optional `luci-app-trusttunnel-diagnostics`) plus the `trusttunnel`
@@ -984,6 +1024,46 @@ to place), verifies the new client against the current app, uploads a
 `success()` so the skipped jobs do not block it, while any real failure
 still does. Routers pick the new client up on the next `apk upgrade` /
 `opkg upgrade` — the app depends on `+trusttunnel-client` unversioned.
+
+#### Scheduled client updater (`.github/workflows/update-client.yml`)
+
+The updater runs daily at 06:00 UTC and on `workflow_dispatch`, on the
+project's master only. It reads
+`GET /repos/TrustTunnel/TrustTunnelClient/releases/latest`, so a vendor
+prerelease is ignored. It never downgrades the pin.
+
+- When the pin is already the latest stable version and both the Makefile
+  and the hash fixture carry the release hashes, it does nothing. When the
+  tag exists but the GitHub release is missing, it dispatches `release.yml`
+  at the tag again. When only the fixture is stale, it commits
+  `tests: repair the client hash fixture` to master without a tag and
+  dispatches `ci.yml`.
+- When a hash changed under the same version, it fails loudly. A human
+  must decide about `PKG_RELEASE`; the updater never republishes a
+  different binary under an existing version.
+- For a newer version it runs `.github/scripts/update-client.sh`. The
+  script reads the current hashes through `tests/release/package-client.sh`
+  (the release packager owns the Makefile parsing), verifies every Linux
+  family tarball against the release digest and the archive layout, then
+  rewrites only `PKG_VERSION`, the five `PKG_HASH` values and the five
+  fixture lines.
+- It commits `release: update the client to <version>` on
+  `automation/client-<version>`, dispatches `ci.yml` and `integration.yml`
+  at that branch, and waits for both. The full end-to-end suite is
+  required because the client-only release path skips it. A failure
+  leaves master untouched.
+- After both pass, it checks that master did not move, fast-forwards
+  master, creates `client-v<version>`, and dispatches `release.yml` at
+  the tag. It needs no repository secret: `contents: write` and
+  `actions: write` are enough.
+- `workflow_dispatch` has a `dry_run` input. It runs the bump, prints the
+  diff, and stops before any push or release.
+
+The updater is the only writer of the client pin. Do not edit the pin by
+hand unless the updater cannot run; use the script instead so the fixture
+and the Makefile stay in sync. The repository must allow direct pushes to
+master by the workflow token, because the updater fast-forwards master
+instead of opening a pull request.
 
 Repositories are served from the Pages site, not from release assets.
 Release assets are per-tag snapshots of every release, while the

@@ -1,0 +1,290 @@
+# Scheduled client updater: publish a new trusttunnel-client release.
+#
+# The vendor publishes prebuilt client binaries. This workflow checks the
+# latest stable release daily, moves the pin in
+# packages/trusttunnel-client/Makefile and tests/fixtures/client-hashes.txt,
+# proves the tree with the existing suites, and then publishes through the
+# normal client-only release path.
+#
+# The order is deliberate:
+#
+#   1. Read GET /repos/TrustTunnel/TrustTunnelClient/releases/latest.
+#   2. Verify every Linux family tarball against the release digest and
+#      rewrite only the pin and the five hashes.
+#   3. Commit on an automation branch. master is not touched yet.
+#   4. Dispatch ci.yml and integration.yml on that branch and wait for both.
+#      A failure leaves master untouched and the branch in place.
+#   5. Fast-forward master, create client-vX.Y.Z, and dispatch release.yml
+#      at the tag. A GITHUB_TOKEN tag push does not start a workflow, so the
+#      dispatch is explicit. release.yml treats a client-v* tag as a
+#      client-only release.
+#
+# The workflow is idempotent. When the pin, the tag and the release already
+# exist, it does nothing. When the tag exists but the release is missing,
+# it dispatches the release pipeline again. A same-version asset change
+# fails loudly instead of silently republishing a different binary under an
+# existing version. A stale hash fixture is repaired in place: when only
+# the fixture differs, the workflow commits the repair to master without a
+# tag and dispatches ci.yml.
+#
+# `workflow_dispatch` has a `dry_run` input: it runs the bump and prints
+# the diff, then stops before any push or release.
+
+name: update-client
+
+on:
+  schedule:
+    # Check for a newer stable client release daily at 06:00 UTC.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Show the bump without pushing or publishing"
+        type: boolean
+        default: false
+
+permissions:
+  # contents: commit the bump, create the tag and push the branch.
+  # actions: dispatch the test and release workflows and watch the runs.
+  contents: write
+  actions: write
+
+# One updater at a time. A scheduled run must not overlap a manual run.
+concurrency:
+  group: update-client
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: ${{ github.repository == 'TrustTunnel/TrustTunnelOpenWrt' && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      # Full history and tags: the workflow checks whether the client tag
+      # already exists and applies the bump on a branch from master.
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read the latest stable vendor release
+        id: vendor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          version="$(gh api repos/TrustTunnel/TrustTunnelClient/releases/latest --jq -r '.tag_name')"
+          version="${version#v}"
+          printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+            echo "::error::unsupported vendor tag '$version' (expected vX.Y.Z)"
+            exit 1
+          }
+          gh api repos/TrustTunnel/TrustTunnelClient/releases/latest --jq '
+            .assets[]
+            | select(.name | test("-linux-(x86_64|aarch64|armv7|mips|mipsel)\\.tar\\.gz$"))
+            | [.name, .browser_download_url, (.digest // "")] | @tsv
+          ' > "$RUNNER_TEMP/assets.tsv"
+          for family in x86_64 aarch64 armv7 mips mipsel; do
+            grep -Fq "trusttunnel_client-v${version}-linux-${family}.tar.gz" "$RUNNER_TEMP/assets.tsv" || {
+              echo "::error::the release has no linux-${family} tarball"
+              exit 1
+            }
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Latest stable vendor release: $version"
+
+      - name: Compare the pin with the vendor release
+        id: compare
+        run: |
+          set -eu
+          version="${{ steps.vendor.outputs.version }}"
+          pinned="$(sed -n 's/^PKG_VERSION:=//p' packages/trusttunnel-client/Makefile | head -n 1)"
+          if [ -z "$pinned" ]; then
+            echo "::error::cannot read PKG_VERSION from packages/trusttunnel-client/Makefile"
+            exit 1
+          fi
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          if [ "$pinned" = "$version" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "The pin already names $version; verifying its hashes."
+            exit 0
+          fi
+          newest="$(printf '%s\n%s\n' "$pinned" "$version" | sort -V | tail -n 1)"
+          if [ "$newest" != "$version" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "The pin $pinned is newer than the vendor release $version; nothing to do."
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "The pin will move from $pinned to $version."
+
+      - name: Bump the pin
+        if: ${{ steps.compare.outputs.skip != 'true' }}
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -eu
+          set -- --root . --version "${{ steps.vendor.outputs.version }}" \
+            --assets "$RUNNER_TEMP/assets.tsv"
+          if [ "$DRY_RUN" = "true" ]; then
+            set -- "$@" --dry-run
+          fi
+          sh .github/scripts/update-client.sh "$@"
+
+      - name: Stop after a dry run
+        if: ${{ inputs.dry_run }}
+        run: echo "Dry run complete. Nothing was pushed or published."
+
+      - name: Decide the next action
+        id: decide
+        if: ${{ inputs.dry_run != true && steps.compare.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          version="${{ steps.vendor.outputs.version }}"
+          pinned="${{ steps.compare.outputs.pinned }}"
+          tag="client-v$version"
+          remote_tag="$(git ls-remote --tags origin "refs/tags/$tag")"
+          changed=0
+          if ! git diff --quiet -- packages/trusttunnel-client/Makefile tests/fixtures/client-hashes.txt; then
+            changed=1
+          fi
+          makefile_changed=0
+          if ! git diff --quiet -- packages/trusttunnel-client/Makefile; then
+            makefile_changed=1
+          fi
+          if [ "$makefile_changed" -eq 1 ] && [ -n "$remote_tag" ]; then
+            echo "::error::the tag $tag already exists but the checked-out tree does not match it; resolve the tag manually."
+            exit 1
+          fi
+          if [ "$changed" -eq 0 ]; then
+            if [ -n "$remote_tag" ]; then
+              if gh release view "$tag" --json tagName >/dev/null 2>&1; then
+                echo "action=noop" >> "$GITHUB_OUTPUT"
+                echo "The pin, the tag and the release are already in place."
+              else
+                echo "action=release" >> "$GITHUB_OUTPUT"
+                echo "The tag exists but the GitHub release is missing; dispatching the release pipeline."
+              fi
+            else
+              echo "action=noop" >> "$GITHUB_OUTPUT"
+              echo "::warning::the pin already names $version but $tag does not exist; push the tag manually."
+            fi
+          elif [ "$pinned" = "$version" ]; then
+            if [ "$makefile_changed" -eq 1 ]; then
+              echo "::error::the vendor assets for $version changed while the pin already names that version; bump PKG_RELEASE manually or wait for a new vendor version."
+              exit 1
+            fi
+            echo "action=repair" >> "$GITHUB_OUTPUT"
+            echo "Only the hash fixture was stale; the updater will commit the repair without a tag."
+          elif [ "$makefile_changed" -eq 0 ]; then
+            echo "::error::the updater changed the fixture but not the Makefile; refusing to publish."
+            exit 1
+          else
+            echo "action=bump" >> "$GITHUB_OUTPUT"
+            echo "The pin will move from $pinned to $version."
+          fi
+
+      - name: Dispatch the release for an existing tag
+        if: ${{ inputs.dry_run != true && steps.decide.outputs.action == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml --ref "client-v${{ steps.vendor.outputs.version }}"
+
+      - name: Commit the fixture repair
+        if: ${{ inputs.dry_run != true && steps.decide.outputs.action == 'repair' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/fixtures/client-hashes.txt
+          git commit -m "tests: repair the client hash fixture"
+          git push origin HEAD:master
+          gh workflow run ci.yml --ref master
+
+      - name: Create the automation branch and commit
+        id: branch
+        if: ${{ inputs.dry_run != true && steps.decide.outputs.action == 'bump' }}
+        run: |
+          set -eu
+          version="${{ steps.vendor.outputs.version }}"
+          branch="automation/client-$version"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          base="$(git rev-parse HEAD)"
+          git checkout -b "$branch"
+          git add packages/trusttunnel-client/Makefile tests/fixtures/client-hashes.txt
+          git commit -m "release: update the client to $version"
+          sha="$(git rev-parse HEAD)"
+          # The branch is automation-owned. A previous failed run may have
+          # left it behind, so replace it instead of failing the new run.
+          git push --force origin "$branch"
+          {
+            echo "branch=$branch"
+            echo "base=$base"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run the contract suites on the branch
+        if: ${{ inputs.dry_run != true && steps.decide.outputs.action == 'bump' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          SHA: ${{ steps.branch.outputs.sha }}
+        run: |
+          set -eu
+          gh workflow run ci.yml --ref "$BRANCH"
+          gh workflow run integration.yml --ref "$BRANCH"
+          wait_for_run() {
+            workflow=$1
+            run_id=
+            attempt=0
+            while [ "$attempt" -lt 60 ]; do
+              run_id="$(gh run list --workflow "$workflow" --branch "$BRANCH" --limit 20 \
+                --json databaseId,headSha \
+                --jq ".[] | select(.headSha == \"$SHA\") | .databaseId" | head -n 1)"
+              [ -n "$run_id" ] && break
+              attempt=$((attempt + 1))
+              sleep 5
+            done
+            if [ -z "$run_id" ]; then
+              echo "::error::the $workflow run did not start on $BRANCH"
+              exit 1
+            fi
+            gh run watch "$run_id" --exit-status --interval 30
+          }
+          wait_for_run ci.yml
+          wait_for_run integration.yml
+
+      - name: Fast-forward master, tag, and dispatch the release
+        if: ${{ inputs.dry_run != true && steps.decide.outputs.action == 'bump' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          BASE: ${{ steps.branch.outputs.base }}
+          VERSION: ${{ steps.vendor.outputs.version }}
+        run: |
+          set -eu
+          git fetch origin master
+          if [ "$(git rev-parse origin/master)" != "$BASE" ]; then
+            echo "::error::master moved during the run; leaving the branch for the next scheduled run"
+            exit 1
+          fi
+          git push origin "$BRANCH:master"
+          tag="client-v$VERSION"
+          git tag -a "$tag" -m "TrustTunnel client $VERSION"
+          attempt=0
+          while ! git push origin "$tag"; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 3 ]; then
+              echo "::error::cannot push $tag"
+              exit 1
+            fi
+            sleep 5
+          done
+          gh workflow run release.yml --ref "$tag"
+          git push origin --delete "$BRANCH" || true
