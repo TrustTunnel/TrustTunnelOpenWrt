@@ -34,6 +34,14 @@ assert_contains "$wf" 'actions: write' "the updater can dispatch the test and re
 assert_contains "$wf" 'group: update-client' "the updater runs one at a time"
 assert_contains "$wf" 'repos/TrustTunnel/TrustTunnelClient/releases/latest' \
 	"the updater reads the latest stable vendor release"
+# gh api takes the jq query as --jq. `--jq -r` is parsed as a second
+# positional argument, and the step fails with "accepts 1 arg(s),
+# received 2". --jq already prints a string without quotes.
+if grep -q -- '--jq -r' "$wf"; then
+	_tt_fail "the updater does not use the invalid gh api --jq -r form"
+else
+	_tt_pass "the updater does not use the invalid gh api --jq -r form"
+fi
 assert_contains "$wf" '.github/scripts/update-client.sh' "the updater uses the bump script"
 assert_contains "$wf" 'for family in x86_64 aarch64 armv7 mips mipsel; do' \
 	"the updater requires all five families"

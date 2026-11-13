@@ -73,7 +73,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          version="$(gh api repos/TrustTunnel/TrustTunnelClient/releases/latest --jq -r '.tag_name')"
+          version="$(gh api repos/TrustTunnel/TrustTunnelClient/releases/latest --jq '.tag_name')"
           version="${version#v}"
           printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
             echo "::error::unsupported vendor tag '$version' (expected vX.Y.Z)"
