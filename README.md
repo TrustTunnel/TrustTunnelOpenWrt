@@ -128,7 +128,9 @@ The script does these steps:
 
 Run the installer again to update the package and the client binary, and
 to refresh the signing keys. The installer does not touch
-`/etc/config/trusttunnel`.
+`/etc/config/trusttunnel`. Stable client releases publish automatically:
+the scheduled updater bumps the vendor pin, runs the test suites, and
+publishes a `client-vX.Y.Z` release.
 
 The Diagnose and Tools pages are an optional add-on. Install the
 `luci-app-trusttunnel-diagnostics` package separately from the same

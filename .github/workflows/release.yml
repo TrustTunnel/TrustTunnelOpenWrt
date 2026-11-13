@@ -35,9 +35,12 @@
 # pinned explicitly.
 #
 # The `gate` job refuses every run that is not a v* or client-v* tag
-# push; dispatch runs are the sole exception (main only, repositories +
-# site, never a release), so a mis-triggered run fails before any SDK
-# work starts.
+# push. A dispatch run is the sole exception, and it has two accepted
+# forms: master republishes the repositories and the site (never a
+# release), and a client-v* tag runs the client-only release path (the
+# scheduled update-client workflow uses that form after it pushes the
+# tag, because a GITHUB_TOKEN tag push does not start a workflow). Any
+# other trigger fails before any SDK work starts.
 
 name: release
 
@@ -58,25 +61,36 @@ permissions:
   id-token: write
 
 jobs:
-  # The release pipeline runs only on v* and client-v* tag pushes:
-  # dispatch runs are the sole exception — they republish the
-  # repositories and the site, never a GitHub release — and are
-  # restricted to main. The gate blocks any other trigger before an SDK
-  # build starts, so a mis-triggered run fails fast instead of burning
-  # the build matrix.
+  # The release pipeline runs only on v* and client-v* tag pushes. A
+  # dispatch run is the sole exception. On master it republishes the
+  # repositories and the site, never a GitHub release. On a client-v* tag
+  # it runs the client-only release path — the scheduled update-client
+  # workflow pushes the tag with GITHUB_TOKEN and then dispatches this
+  # workflow at the tag, because a GITHUB_TOKEN tag push does not start a
+  # workflow. The gate blocks any other trigger before an SDK build
+  # starts, so a mis-triggered run fails fast instead of burning the build
+  # matrix.
   gate:
     name: Refuse non-tag release runs
     runs-on: ubuntu-latest
     steps:
-      - name: Check the run is a v* or client-v* tag push (or a main dispatch)
+      - name: Check the run is a v* or client-v* tag push (or an allowed dispatch)
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ "$GITHUB_REF" != "refs/heads/master" ]; then
-              echo "::error::workflow_dispatch republishes from master only (got ref $GITHUB_REF); refusing the run"
-              exit 1
-            fi
-            echo "Dispatch on master: republishing the repositories and the site (no release)."
-            exit 0
+            case "$GITHUB_REF" in
+              refs/heads/master)
+                echo "Dispatch on master: republishing the repositories and the site (no release)."
+                exit 0
+                ;;
+              refs/tags/client-v*)
+                echo "Dispatch on $GITHUB_REF_NAME: releasing the client."
+                exit 0
+                ;;
+              *)
+                echo "::error::workflow_dispatch runs on master (repositories + site) or a client-v* tag (client release) only (got ref $GITHUB_REF); refusing the run"
+                exit 1
+                ;;
+            esac
           fi
           case "$GITHUB_REF" in
             refs/tags/v*|refs/tags/client-v*)

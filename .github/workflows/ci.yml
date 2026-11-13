@@ -14,6 +14,9 @@ on:
     branches: [ master ]
     tags: [ 'v*', 'client-v*' ]
   pull_request:
+  # The scheduled update-client workflow dispatches this gate on its
+  # automation branch before it tags the client bump.
+  workflow_dispatch:
 
 # A per-ref group: a new push to the same branch or PR supersedes the
 # previous run instead of stacking redundant gates.
@@ -150,6 +153,9 @@ jobs:
             tests/integration/build-sdk.sh \
             tests/integration/restricted-feeds.sh \
             tests/release/package-client.sh \
+            .github/scripts/update-client.sh \
+            tests/test_update_client.sh \
+            tests/test_update_client_workflow.sh \
             tests/install-harness.sh \
             tests/backend/test_backend_contract.sh \
             tests/gui/run.sh \
