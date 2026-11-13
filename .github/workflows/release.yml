@@ -72,7 +72,7 @@ jobs:
   # matrix.
   gate:
     name: Refuse non-tag release runs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check the run is a v* or client-v* tag push (or an allowed dispatch)
         run: |
@@ -109,7 +109,7 @@ jobs:
     # client-v* tag would make that assertion expect a client version in
     # the app's file name and fail).
     if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [gate]
     strategy:
       # One failed build must not cancel the other: every artifact is
@@ -255,7 +255,7 @@ jobs:
   # Dockerfile, and the packager script reads the Makefile.
   prepare-packager:
     name: Prepare the client packager image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [gate]
     steps:
       - name: Check out the repository
@@ -302,7 +302,7 @@ jobs:
   # LuCI-only release must not repackage the unchanged client.
   package-client:
     name: Package trusttunnel-client (${{ matrix.arch }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [gate, prepare-packager]
     strategy:
       # One failed arch must not cancel the rest: every package is needed
@@ -612,7 +612,7 @@ jobs:
     # would skip this job anyway; the explicit condition keeps the
     # intent visible and is robust against that skip being dropped.
     if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       # One variant's failure must not cancel the other: both results are
@@ -697,7 +697,7 @@ jobs:
     # not block the publish, while a FAILED package-client (or anything
     # else) still must.
     if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # Provides the repo-site templates and the committed public halves
       # of the signing keys (key-build.pub, opkg-key.pub).

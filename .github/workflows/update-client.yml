@@ -57,7 +57,7 @@ concurrency:
 jobs:
   update:
     if: ${{ github.repository == 'TrustTunnel/TrustTunnelOpenWrt' && github.ref == 'refs/heads/master' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
       # Full history and tags: the workflow checks whether the client tag

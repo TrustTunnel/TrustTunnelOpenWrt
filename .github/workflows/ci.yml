@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       # The whole history (and with it all tags) is required by the
@@ -156,6 +156,7 @@ jobs:
             .github/scripts/update-client.sh \
             tests/test_update_client.sh \
             tests/test_update_client_workflow.sh \
+            tests/test_workflow_runtime.sh \
             tests/install-harness.sh \
             tests/backend/test_backend_contract.sh \
             tests/gui/run.sh \
@@ -174,7 +175,9 @@ jobs:
       # rand() case), so every used module function must appear in the
       # module's import line. A function counts as used when it is
       # followed by "(" as a whole word, and as imported when its module
-      # import line contains it as a whole word.
+      # import line contains it as a whole word. The boundaries are POSIX
+      # bracket expressions: GNU grep rejects the BSD word-boundary
+      # classes, which silently disabled this check on the hosted runner.
       - name: Check that every used ucode module function is imported
         run: |
           fail=0
@@ -188,8 +191,8 @@ jobs:
               ubus:connect uci:cursor; do
               mod=${pair%%:*}
               fn=${pair#*:}
-              if grep -Eq "[[:<:]]${fn}\(" "$backend"; then
-                if ! grep -Eq "^[[:space:]]*import \{[^}]*[[:<:]]${fn}[[:>:]][^}]*\} from '${mod}'" "$backend"; then
+              if grep -Eq "(^|[^[:alnum:]_])${fn}\(" "$backend"; then
+                if ! grep -Eq "^[[:space:]]*import \{[^}]*[^[:alnum:]_]${fn}[^[:alnum:]_][^}]*\} from '${mod}'" "$backend"; then
                   echo "::error::$mod.$fn() is used in $backend but not imported from '$mod'"
                   fail=1
                 fi
@@ -248,7 +251,8 @@ jobs:
       # a missing 'require' line throws when the view loads, which a plain
       # node syntax pass cannot see, so every used module must be declared.
       # A module counts as used when a "module.function(" word pattern
-      # appears in the file.
+      # appears in the file. The boundary is a POSIX bracket expression for
+      # the same reason as the ucode import check above.
       - name: Check that every LuCI module used by the views is required
         run: |
           # The views are split across the core package and the optional
@@ -260,7 +264,7 @@ jobs:
             for f in "$views"/*.js; do
               [ -f "$f" ] || continue
               for mod in ui dom rpc uci form view poll fs network validation; do
-                if grep -Eq "[[:<:]]${mod}\.[A-Za-z_][A-Za-z0-9_]*\(" "$f"; then
+                if grep -Eq "(^|[^[:alnum:]_])${mod}\.[A-Za-z_][A-Za-z0-9_]*\(" "$f"; then
                   if ! grep -Eq "^'require ${mod}'" "$f"; then
                     echo "::error::$(basename "$f") uses $mod.*() but does not declare 'require $mod'"
                     fail=1
