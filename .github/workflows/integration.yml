@@ -145,7 +145,7 @@ jobs:
       # Both matrix artifacts are merged into one directory; the harness
       # selects the packages of its package manager by file-name globs.
       - name: Download the built repositories
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: repo-*
           path: repos

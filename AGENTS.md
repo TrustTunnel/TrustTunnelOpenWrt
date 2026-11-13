@@ -97,7 +97,7 @@ user-facing description.
   tests: `sh tests/test_update_client.sh` (script behavior) and
   `sh tests/test_update_client_workflow.sh` (workflow contract).
   `sh tests/test_workflow_runtime.sh` pins the runner image, the cache
-  action runtime and the POSIX grep syntax.
+  and artifact action runtimes and the POSIX grep syntax.
 - **Lint**: shellcheck (`docker run --rm -v "$PWD:/src" -w /src
   koalaman/shellcheck:v0.11.0 -s sh --severity=error <files>`, with the
   file list in `ci.yml`), `sh -n
@@ -866,9 +866,10 @@ dependencies keep the package set small and predictable.
   `integration.yml` runs the end-to-end suite on PRs, master pushes and
   manual dispatch, `update-client.yml` is the scheduled client updater
   below, and `release.yml` is the release pipeline below.
-  The workflows pin `runs-on: ubuntu-24.04` and `actions/cache@v6`;
-  `tests/test_workflow_runtime.sh` enforces both. The `ci.yml` shell
-  gates use POSIX bracket expressions for word boundaries.
+  The workflows pin `runs-on: ubuntu-24.04`, `actions/cache@v6` and
+  `actions/download-artifact@v8`; `tests/test_workflow_runtime.sh`
+  enforces them. The `ci.yml` shell gates use POSIX bracket expressions
+  for word boundaries.
   Name a release job that only packages a prebuilt vendor artifact
   `package-*`, not `build-*`. The client job is `package-client`. It
   uses the shared packager image, not the SDK. Keep

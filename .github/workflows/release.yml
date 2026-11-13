@@ -518,7 +518,7 @@ jobs:
 
       - name: Download the packager image
         if: steps.reuse.outputs.present != 'true'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-client-packager
 
@@ -648,14 +648,14 @@ jobs:
       # artifact (package-client-<version>-x86_64) land in one directory;
       # the harness selects its package manager's files by name globs.
       - name: Download the LuCI package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-${{ matrix.version }}
           path: repos
           merge-multiple: true
 
       - name: Download the client package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-client-${{ matrix.version }}-x86_64
           path: repos
@@ -710,20 +710,20 @@ jobs:
       # repositories must keep serving.
       - name: Download the LuCI packages (apk)
         if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-25.12.5
           path: staging/luci-apk
 
       - name: Download the LuCI packages (ipk)
         if: ${{ !startsWith(github.ref, 'refs/tags/client-v') }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: package-22.03.7
           path: staging/luci-ipk
 
       - name: Download the client packages (apk)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           # One artifact per architecture; merge them into a single tree.
           pattern: package-client-25.12.5-*
@@ -731,7 +731,7 @@ jobs:
           merge-multiple: true
 
       - name: Download the client packages (ipk)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: package-client-22.03.7-*
           path: staging/opkg-pkgs

@@ -5,7 +5,9 @@
 # targets the deprecated Node 20 runtime. A silent image change can break
 # the Docker-based tests, and the Node notice becomes a forced migration.
 # The workflows pin the runner image to ubuntu-24.04 and the cache action
-# to the Node 24 major.
+# to the Node 24 major. The artifact download action is v8: v7 bundles a
+# Node dependency that emits the DEP0005 Buffer() warning on every
+# download.
 #
 # The ci.yml shell gates used the BSD word-boundary classes [[:<:]] and
 # [[:>:]]. GNU grep on the hosted runner rejects them with "Invalid
@@ -54,6 +56,19 @@ if grep -Eq '^[[:space:]]*uses: actions/cache@v[0-5]$' "$cache"; then
 	_tt_fail "the cache action is not on a pre-Node-24 major"
 else
 	_tt_pass "the cache action is not on a pre-Node-24 major"
+fi
+
+# The artifact download action is v8. v7 bundled a Node dependency that
+# emitted the DEP0005 Buffer() warning on every download.
+if grep -Eq 'actions/download-artifact@v8$' "$WORKFLOWS"/*.yml; then
+	_tt_pass "the artifact download action is v8"
+else
+	_tt_fail "the artifact download action is v8"
+fi
+if grep -Eq 'actions/download-artifact@v[0-7]$' "$WORKFLOWS"/*.yml; then
+	_tt_fail "the artifact download action is not on a pre-v8 major"
+else
+	_tt_pass "the artifact download action is not on a pre-v8 major"
 fi
 
 tt_test_summary
