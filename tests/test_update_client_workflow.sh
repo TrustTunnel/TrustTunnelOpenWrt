@@ -4,8 +4,10 @@
 # The updater is a release gate, so its structure is a contract like the
 # client-only release path in release.yml. The failure modes are silent
 # and expensive: a direct push to master would publish an untested binary,
-# a missing integration wait would skip the only tunnel test, and a tag
-# push with GITHUB_TOKEN would not start the release pipeline at all.
+# a missing integration wait would skip the only tunnel test, a tag push
+# with GITHUB_TOKEN would not start the release pipeline at all, and a
+# stale fixture misreported as a vendor asset change would block the
+# repair.
 #
 # The test reads the workflow as text. It needs no YAML parser and no
 # network.
@@ -51,6 +53,17 @@ assert_contains "$wf" 'changed while the pin already names that version' \
 	"a same-version asset change fails loudly"
 assert_contains "$wf" 'already exists but the checked-out tree does not match it' \
 	"a stale tag with a different tree fails loudly"
+assert_contains "$wf" 'makefile_changed' \
+	"the updater distinguishes a fixture repair from a hash change"
+assert_contains "$wf" 'action=repair' "the updater repairs a stale fixture"
+assert_contains "$wf" 'tests: repair the client hash fixture' \
+	"the repair commit follows the project style"
+assert_contains "$wf" 'git push origin HEAD:master' \
+	"the repair lands on master without a tag"
+assert_contains "$wf" 'gh workflow run ci.yml --ref master' \
+	"the repair dispatches the contract suite"
+assert_contains "$wf" 'the updater changed the fixture but not the Makefile' \
+	"an inconsistent fixture-only bump is refused"
 assert_contains "$wf" 'Dry run complete' "the dry run stops before publishing"
 
 # The scheduled job must not depend on a repository secret. A

@@ -17,6 +17,10 @@
 # archive layout the packager needs (the top-level directory and the five
 # installed files). A release that fails any check changes nothing.
 #
+# The script reads the current hashes through the same packager parser
+# the release pipeline uses (tests/release/package-client.sh), so the two
+# cannot drift. A stale hash fixture is repaired together with the pin.
+#
 # `--assets` is a TSV of `name<TAB>url<TAB>sha256`. The workflow writes it
 # with `gh api --jq`, so this script needs no JSON parser. `--tarball-dir`
 # replaces the download with local files and exists for the unit test.
@@ -136,9 +140,13 @@ asset_field() {
 }
 
 # hash_in_makefile <file> <family> — the family's PKG_HASH value.
+#
+# The packager owns the Makefile parsing. Reading through it keeps the
+# updater and the release pipeline on one parser, so a change to the hash
+# block cannot update one and miss the other.
 hash_in_makefile() {
-	sed -n '/^PKG_HASH[[:space:]]*:=/,/)))))/p' "$1" | tr -d '\\\n' \
-		| sed -n "s/.*\$(filter $2,\$(VENDOR_ARCH)),\([0-9a-f][0-9a-f]*\).*/\1/p"
+	TT_REPO_DIR="$root" TT_CLIENT_MAKEFILE="$1" \
+		sh "$(dirname "$0")/../../tests/release/package-client.sh" hash "$2"
 }
 
 # Validate the release metadata before any download: every family must be
@@ -160,18 +168,23 @@ done
 pinned=$(sed -n 's/^PKG_VERSION:=//p' "$makefile" | head -n 1)
 [ -n "$pinned" ] || die "cannot read PKG_VERSION from $makefile"
 
-# When the pin already names this version and every hash matches, there is
-# nothing to verify or write. This is the common scheduled-run path, so it
-# avoids downloading five tarballs every day.
+# When the pin already names this version and both the Makefile and the
+# fixture carry the release hashes, there is nothing to verify or write.
+# This is the common scheduled-run path, so it avoids downloading five
+# tarballs every day. The fixture is part of the check: a stale fixture
+# must be repaired, not reported as current.
 current=1
 [ "$pinned" = "$version" ] || current=0
 for family in $families; do
 	name="trusttunnel_client-v${version}-linux-${family}.tar.gz"
 	digest=$(asset_field "$name" 3)
 	digest=${digest#sha256:}
-	actual=$(hash_in_makefile "$makefile" "$family")
-	[ -n "$actual" ] || die "cannot read the $family hash from $makefile"
+	if ! actual=$(hash_in_makefile "$makefile" "$family"); then
+		die "cannot read the $family hash from $makefile"
+	fi
 	[ "$actual" = "$digest" ] || current=0
+	fixture_hash=$(awk -v family="$family" '$1 == family { print $2; exit }' "$fixture")
+	[ "$fixture_hash" = "$digest" ] || current=0
 done
 
 if [ "$current" -eq 1 ]; then
@@ -272,7 +285,9 @@ for family in $families; do
 	name="trusttunnel_client-v${version}-linux-${family}.tar.gz"
 	expected=$(asset_field "$name" 3)
 	expected=${expected#sha256:}
-	actual=$(hash_in_makefile "$work/Makefile.new" "$family")
+	if ! actual=$(hash_in_makefile "$work/Makefile.new" "$family"); then
+		die "failed to read the $family hash from $work/Makefile.new"
+	fi
 	[ "$actual" = "$expected" ] \
 		|| die "failed to rewrite the $family hash in $makefile"
 	fixture_hash=$(awk -v family="$family" '$1 == family { print $2; exit }' \
@@ -292,5 +307,7 @@ cp "$work/Makefile.new" "$makefile"
 cp "$work/client-hashes.new" "$fixture"
 printf 'update-client: %s -> %s\n' "$pinned" "$version"
 for family in $families; do
-	printf '  %-8s %s\n' "$family" "$(hash_in_makefile "$makefile" "$family")"
+	name="trusttunnel_client-v${version}-linux-${family}.tar.gz"
+	digest=$(asset_field "$name" 3)
+	printf '  %-8s %s\n' "$family" "${digest#sha256:}"
 done

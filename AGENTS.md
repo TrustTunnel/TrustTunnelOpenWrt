@@ -673,14 +673,17 @@ dependencies stay installed on purpose.
 - **The client updater tests**: `tests/test_update_client.sh` uses fake
   vendor tarballs and an assets TSV. It asserts that the bump rewrites only
   the pin, the five Makefile hashes and the five fixture lines, that a
-  second run is a no-op, that `--dry-run` writes nothing, and that a
-  missing family, a bad digest, a malformed version or a tarball without
-  `LICENSE` changes nothing. It reads the rewritten Makefile back through
-  `tests/release/package-client.sh`, so the two parsers cannot drift.
+  second run is a no-op, that `--dry-run` writes nothing, that a stale
+  fixture is repaired without touching the Makefile, and that a missing
+  family, a bad digest, a malformed version or a tarball without
+  `LICENSE` changes nothing. It reads the Makefile through
+  `tests/release/package-client.sh`, the parser the updater and the
+  release pipeline share.
   `tests/test_update_client_workflow.sh` pins the scheduled workflow
   structure: the schedule, the master guard, the permissions, the
   automation branch, the integration wait, the tag, the release dispatch,
-  the missing-release recovery, and the absence of a repository secret.
+  the missing-release recovery, the fixture repair, and the absence of a
+  repository secret.
 - **The view-contract gate** (`tests/view-contract.js`) cross-checks the
   views against the backend without a browser: every `rpc.declare` must
   name a registered method that the ACL grants and declare a subset of its
@@ -1007,16 +1010,21 @@ project's master only. It reads
 `GET /repos/TrustTunnel/TrustTunnelClient/releases/latest`, so a vendor
 prerelease is ignored. It never downgrades the pin.
 
-- When the pin is already the latest stable version and the five hashes
-  match, it does nothing. When the tag exists but the GitHub release is
-  missing, it dispatches `release.yml` at the tag again.
+- When the pin is already the latest stable version and both the Makefile
+  and the hash fixture carry the release hashes, it does nothing. When the
+  tag exists but the GitHub release is missing, it dispatches `release.yml`
+  at the tag again. When only the fixture is stale, it commits
+  `tests: repair the client hash fixture` to master without a tag and
+  dispatches `ci.yml`.
 - When a hash changed under the same version, it fails loudly. A human
   must decide about `PKG_RELEASE`; the updater never republishes a
   different binary under an existing version.
 - For a newer version it runs `.github/scripts/update-client.sh`. The
-  script verifies every Linux family tarball against the release digest
-  and the archive layout, then rewrites only `PKG_VERSION`, the five
-  `PKG_HASH` values and the five fixture lines.
+  script reads the current hashes through `tests/release/package-client.sh`
+  (the release packager owns the Makefile parsing), verifies every Linux
+  family tarball against the release digest and the archive layout, then
+  rewrites only `PKG_VERSION`, the five `PKG_HASH` values and the five
+  fixture lines.
 - It commits `release: update the client to <version>` on
   `automation/client-<version>`, dispatches `ci.yml` and `integration.yml`
   at that branch, and waits for both. The full end-to-end suite is

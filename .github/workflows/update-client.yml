@@ -23,7 +23,9 @@
 # exist, it does nothing. When the tag exists but the release is missing,
 # it dispatches the release pipeline again. A same-version asset change
 # fails loudly instead of silently republishing a different binary under an
-# existing version.
+# existing version. A stale hash fixture is repaired in place: when only
+# the fixture differs, the workflow commits the repair to master without a
+# tag and dispatches ci.yml.
 #
 # `workflow_dispatch` has a `dry_run` input: it runs the bump and prints
 # the diff, then stops before any push or release.
@@ -148,7 +150,11 @@ jobs:
           if ! git diff --quiet -- packages/trusttunnel-client/Makefile tests/fixtures/client-hashes.txt; then
             changed=1
           fi
-          if [ "$changed" -eq 1 ] && [ -n "$remote_tag" ]; then
+          makefile_changed=0
+          if ! git diff --quiet -- packages/trusttunnel-client/Makefile; then
+            makefile_changed=1
+          fi
+          if [ "$makefile_changed" -eq 1 ] && [ -n "$remote_tag" ]; then
             echo "::error::the tag $tag already exists but the checked-out tree does not match it; resolve the tag manually."
             exit 1
           fi
@@ -166,7 +172,14 @@ jobs:
               echo "::warning::the pin already names $version but $tag does not exist; push the tag manually."
             fi
           elif [ "$pinned" = "$version" ]; then
-            echo "::error::the vendor assets for $version changed while the pin already names that version; bump PKG_RELEASE manually or wait for a new vendor version."
+            if [ "$makefile_changed" -eq 1 ]; then
+              echo "::error::the vendor assets for $version changed while the pin already names that version; bump PKG_RELEASE manually or wait for a new vendor version."
+              exit 1
+            fi
+            echo "action=repair" >> "$GITHUB_OUTPUT"
+            echo "Only the hash fixture was stale; the updater will commit the repair without a tag."
+          elif [ "$makefile_changed" -eq 0 ]; then
+            echo "::error::the updater changed the fixture but not the Makefile; refusing to publish."
             exit 1
           else
             echo "action=bump" >> "$GITHUB_OUTPUT"
@@ -179,6 +192,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run release.yml --ref "client-v${{ steps.vendor.outputs.version }}"
+
+      - name: Commit the fixture repair
+        if: ${{ inputs.dry_run != true && steps.decide.outputs.action == 'repair' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/fixtures/client-hashes.txt
+          git commit -m "tests: repair the client hash fixture"
+          git push origin HEAD:master
+          gh workflow run ci.yml --ref master
 
       - name: Create the automation branch and commit
         id: branch

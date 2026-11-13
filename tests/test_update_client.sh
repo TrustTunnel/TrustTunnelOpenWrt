@@ -10,9 +10,10 @@
 # later in the release matrix or, worse, publish a different binary.
 #
 # The test uses fake tarballs and a fake assets table. It never downloads
-# the vendor release. The rewritten Makefile is read back through
+# the vendor release. The script reads the Makefile through
 # tests/release/package-client.sh, the consumer the release pipeline uses,
-# so the test also proves the two parsers agree.
+# so the test also proves the two parsers agree. A stale hash fixture must
+# be repaired without touching the Makefile.
 . "$(dirname "$0")/lib.sh"
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -139,6 +140,21 @@ assert_eq "$before_makefile" "$(sha256_of "$WORK/root/packages/trusttunnel-clien
 	"a second run leaves the Makefile unchanged"
 assert_eq "$before_fixture" "$(sha256_of "$WORK/root/tests/fixtures/client-hashes.txt")" \
 	"a second run leaves the fixture unchanged"
+
+# A stale fixture must be repaired even when the Makefile already matches.
+# The current check used to look only at the Makefile, so a corrupted
+# fixture made the script report "already at" and left the tree broken.
+before_makefile=$(sha256_of "$WORK/root/packages/trusttunnel-client/Makefile")
+awk -v family=aarch64 'BEGIN { OFS = " " } $1 == family { $2 = sprintf("%064d", 0) } { print }' \
+	"$WORK/root/tests/fixtures/client-hashes.txt" > "$WORK/fixture.tmp"
+mv "$WORK/fixture.tmp" "$WORK/root/tests/fixtures/client-hashes.txt"
+run_ok "a stale fixture is repaired" sh "$SCRIPT" --root "$WORK/root" --version "$VERSION" \
+	--assets "$WORK/assets.tsv" --tarball-dir "$WORK/vendor"
+assert_eq "$before_makefile" "$(sha256_of "$WORK/root/packages/trusttunnel-client/Makefile")" \
+	"the repair leaves the Makefile unchanged"
+assert_eq "$(expected_digest aarch64)" \
+	"$(awk -v family=aarch64 '$1 == family { print $2 }' "$WORK/root/tests/fixtures/client-hashes.txt")" \
+	"the repair restores the aarch64 fixture hash"
 
 reset_root
 before_makefile=$(sha256_of "$WORK/root/packages/trusttunnel-client/Makefile")
