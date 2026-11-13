@@ -151,12 +151,15 @@ have no effect.
   (`https://trusttunnel.github.io/TrustTunnelOpenWrt`), in the official
   OpenWrt layout `releases/<version>/packages/<arch>/trusttunnel/`. The
   `25.12.5` tree holds the apk feeds, and the `22.03.7` tree holds the
-  opkg feeds. Each device architecture has one signed feed directory. A
-  release is a `vX.Y.Z` tag push on master. The release workflow builds
-  the packages, verifies them end to end, and publishes the repositories,
-  the site and a GitHub release from the tag. The pipeline refuses runs
-  that are not tag pushes. The site is served straight from CI, and no
-  branch ever holds the packages.
+  opkg feeds. Each device architecture has one signed feed directory.
+  Each feed keeps the newest three releases, because the published site
+  has a hard 1 GB limit. The newest LuCI app release is always kept.
+  Older versions stay on their GitHub releases. A release is a `vX.Y.Z`
+  tag push on master. The release workflow builds the packages, verifies
+  them end to end, and publishes the repositories, the site and a GitHub
+  release from the tag. The pipeline refuses runs that are not tag
+  pushes. The site is served straight from CI, and no branch ever holds
+  the packages.
 - **Manual downloads.** Check a `.apk` or `.ipk` file from the release
   assets against the SHA-256 sums in the release notes.
 - **Key rotation.** The signing keys rotate. Run the installer once more

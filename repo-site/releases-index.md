@@ -14,10 +14,12 @@ were built against:
 - `22.03.7` — the opkg repositories for OpenWrt 22.03–24.10 (opkg)
 
 Each tree holds per-architecture `trusttunnel` feed directories with the
-signed index, the public signing key and every released version of the
-packages. This project ships no target-specific packages and no kernel
-modules, so the official layout's `targets/<target>/<subtarget>/` trees
-do not exist here.
+signed index, the public signing key and the retained versions of the
+packages. Each feed keeps the newest `__KEEP__` releases, because the
+published site has a hard 1 GB limit. Older versions stay on their
+GitHub releases. This project ships no target-specific packages and no
+kernel modules, so the official layout's `targets/<target>/<subtarget>/`
+trees do not exist here.
 
 Release trees:
 

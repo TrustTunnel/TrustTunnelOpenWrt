@@ -145,6 +145,7 @@ jobs:
             tests/test_hotplug.sh \
             tests/test_package_client.sh \
             tests/test_release_workflow.sh \
+            tests/test_select_releases.sh \
             tests/test_tt_uci.sh \
             tests/test_uci_defaults.sh \
             tests/test_init_regenerate.sh \
@@ -157,6 +158,7 @@ jobs:
             tests/test_update_client.sh \
             tests/test_update_client_workflow.sh \
             tests/test_workflow_runtime.sh \
+            tests/release/select-releases.sh \
             tests/install-harness.sh \
             tests/backend/test_backend_contract.sh \
             tests/gui/run.sh \

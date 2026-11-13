@@ -18,21 +18,22 @@
 # A client-v* tag push produces a client-only release: the LuCI app is
 # unchanged, so the app build and the end-to-end integration run are
 # skipped, the client matrix is built (and its version asserted against
-# the tag), and the new client packages are assembled into the SAME
-# cumulative trees (prior app packages are merged in, so the repositories
-# keep serving the current app), verified against the repositories'
-# current app in fresh rootfs containers — the exact pairing routers will
+# the tag), and the new client packages are assembled into the same
+# trees (the newest v* app release is merged in, so the repositories keep
+# serving the current app), verified against the repositories' current
+# app in fresh rootfs containers — the exact pairing routers will
 # upgrade to — and shipped under a client-vX.Y.Z GitHub release. Routers
 # pick the new client up on the next `apk upgrade` / `opkg upgrade`: the
 # app depends on +trusttunnel-client unversioned.
 #
-# The repositories are cumulative: the packages of every prior release
-# are merged into the fresh build's repositories, so every released
-# version stays installable — pinning and downgrading keep working. That
-# includes every released trusttunnel-client version, so a router can pin
-# an older client build; the app's dependency on it is unversioned, and
-# the package managers keep installing the highest version unless one is
-# pinned explicitly.
+# The repositories are capped: the published site has a hard 1 GB limit,
+# so the feed keeps only the newest TT_FEED_KEEP_RELEASES releases (3 by
+# default) instead of every release ever published. The newest v* app
+# release is always kept, because a client-only release does not build
+# the app and a feed without it cannot install the package. Pinning and
+# downgrading work for the retained versions. The version releases stay
+# on GitHub, so an older version is still downloadable from its own
+# release.
 #
 # The `gate` job refuses every run that is not a v* or client-v* tag
 # push. A dispatch run is the sole exception, and it has two accepted
@@ -698,6 +699,14 @@ jobs:
     # else) still must.
     if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master')) }}
     runs-on: ubuntu-24.04
+    # The Pages site has a hard 1 GB limit. Keep the newest three
+    # releases (the 3-5 range stays below the limit with headroom for the
+    # site), and refuse to deploy a larger tree. The cap counts release
+    # events, not package versions: the current release plus the newest
+    # keep-1 prior releases.
+    env:
+      TT_FEED_KEEP_RELEASES: "3"
+      TT_FEED_MAX_MB: "900"
     steps:
       # Provides the repo-site templates and the committed public halves
       # of the signing keys (key-build.pub, opkg-key.pub).
@@ -737,55 +746,74 @@ jobs:
           path: staging/opkg-pkgs
           merge-multiple: true
 
-      # The GitHub release is a second copy of the repository contents
-      # (see the upload step below): every released tag carries exactly
-      # the packages that were published to the repositories that day.
-      # Pull them all so the repositories keep serving every prior
-      # version, not just the newest. gh queries the API, so no local
-      # tag history is needed (the checkout is shallow).
-      - name: Download the prior release artifacts
+      # The Pages site has a hard 1 GB limit, so the feed keeps only the
+      # newest releases. The version releases stay on GitHub: an older
+      # version is still downloadable from its own release, but it is no
+      # longer in the feed. select-releases.sh also always keeps the
+      # newest v* app release, because a client-only release does not
+      # build the app and a feed without it cannot install the package.
+      # The app-only release contributes its app/runtime packages only,
+      # so its client does not consume a retention slot.
+      - name: Download the retained release artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p staging/prior-apk staging/prior-opkg
-          # The release being built is excluded — its freshly built
-          # packages are staged by the build and packaging jobs. On a
-          # dispatch run the ref is a branch name, which matches no
-          # release, so every release is kept.
-          exclude="$GITHUB_REF_NAME"
-          # Every tag is iterated — v* (app+client) and client-v*
-          # (client only) alike: the prior clients merge like every
-          # other package, and the app packages from the v* releases
-          # keep the whole version history installable. A
-          # client-v* release therefore requires an existing v* release:
-          # without one there is no app to merge, and the repository
-          # verification below would fail loudly rather than publish a
-          # repo without the app.
-          tags="$(gh release list --limit 100 --json tagName,isDraft --jq '.[] | select(.isDraft | not) | .tagName')"
-          for tag in $tags; do
-            [ "$tag" = "$exclude" ] && continue
-            # Only the current package set is merged: the early -lite
-            # releases must not resurface in the repositories. The [0-9]
-            # anchor keeps the version directly after the package name
-            # (-lite versions start with a letter instead), and releases
-            # with no matching assets (the first ipk-less release) are
-            # skipped, which gh would otherwise report as an error.
+          # The release being built is staged by the build and packaging
+          # jobs, so it is not downloaded. A dispatch run has no current
+          # release.
+          current="-"
+          case "$GITHUB_REF_NAME" in
+            v[0-9]*|client-v*) current="$GITHUB_REF_NAME" ;;
+          esac
+          # List every release: the old --limit 100 could hide the newest
+          # v* release behind many client-only releases, and the feed
+          # must keep it.
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft | not) | .tag_name' > tags.txt
+          selected="$(sh tests/release/select-releases.sh "$current" "$TT_FEED_KEEP_RELEASES" tags.txt)"
+          printf '%s\n' "$selected"
+          # Only the current package set is merged: the early -lite
+          # releases must not resurface in the repositories. The [0-9]
+          # anchor keeps the version directly after the package name
+          # (-lite versions start with a letter instead), and releases
+          # with no matching assets (the first ipk-less release) are
+          # skipped, which gh would otherwise report as an error.
+          printf '%s\n' "$selected" | while IFS="$(printf '\t')" read -r tag mode; do
+            [ -n "$tag" ] || continue
             names="$(gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null || true)"
             if printf '%s\n' "$names" | grep -Eq '^(luci-app-trusttunnel|luci-app-trusttunnel-diagnostics|trusttunnel|trusttunnel-client)-[0-9].*\.apk$'; then
-              gh release download "$tag" \
-                --pattern 'luci-app-trusttunnel-*.apk' \
-                --pattern 'luci-app-trusttunnel-diagnostics-*.apk' \
-                --pattern 'trusttunnel-[0-9]*.apk' \
-                --pattern 'trusttunnel-client-*.apk' \
-                --dir staging/prior-apk --clobber
+              if [ "$mode" = app ]; then
+                gh release download "$tag" \
+                  --pattern 'luci-app-trusttunnel-*.apk' \
+                  --pattern 'luci-app-trusttunnel-diagnostics-*.apk' \
+                  --pattern 'trusttunnel-[0-9]*.apk' \
+                  --dir staging/prior-apk --clobber
+              else
+                gh release download "$tag" \
+                  --pattern 'luci-app-trusttunnel-*.apk' \
+                  --pattern 'luci-app-trusttunnel-diagnostics-*.apk' \
+                  --pattern 'trusttunnel-[0-9]*.apk' \
+                  --pattern 'trusttunnel-client-*.apk' \
+                  --dir staging/prior-apk --clobber
+              fi
             fi
             if printf '%s\n' "$names" | grep -Eq '^(luci-app-trusttunnel|luci-app-trusttunnel-diagnostics|trusttunnel|trusttunnel-client)_[0-9].*\.ipk$'; then
-              gh release download "$tag" \
-                --pattern 'luci-app-trusttunnel_*.ipk' \
-                --pattern 'luci-app-trusttunnel-diagnostics_*.ipk' \
-                --pattern 'trusttunnel_[0-9]*.ipk' \
-                --pattern 'trusttunnel-client_*.ipk' \
-                --dir staging/prior-opkg --clobber
+              if [ "$mode" = app ]; then
+                gh release download "$tag" \
+                  --pattern 'luci-app-trusttunnel_*.ipk' \
+                  --pattern 'luci-app-trusttunnel-diagnostics_*.ipk' \
+                  --pattern 'trusttunnel_[0-9]*.ipk' \
+                  --dir staging/prior-opkg --clobber
+              else
+                gh release download "$tag" \
+                  --pattern 'luci-app-trusttunnel_*.ipk' \
+                  --pattern 'luci-app-trusttunnel-diagnostics_*.ipk' \
+                  --pattern 'trusttunnel_[0-9]*.ipk' \
+                  --pattern 'trusttunnel-client_*.ipk' \
+                  --dir staging/prior-opkg --clobber
+              fi
             fi
           done
 
@@ -794,7 +822,7 @@ jobs:
       # (releases/25.12.5/ for apk, releases/22.03.7/ for opkg), each
       # holding per-architecture feed directories
       # (releases/<version>/packages/<arch>/trusttunnel/ on the site)
-      # with the signed index, the public key and every released version
+      # with the signed index, the public key and the retained versions
       # of the packages. apk fetches
       # <url>/releases/25.12.5/packages/<arch>/trusttunnel/packages.adb,
       # opkg appends /Packages.gz to
@@ -873,11 +901,12 @@ jobs:
           cp tests/release/packager.Dockerfile staging/releases/25.12.5/packager.Dockerfile
 
           # The noarch LuCI app packages land in every architecture
-          # directory — current and prior versions alike, so the whole
-          # version history is installable everywhere. Prior first: the
-          # fresh build wins on a same-version collision. On a client-v*
-          # release there is no fresh build (staging/luci-apk is empty),
-          # and the prior merge above is the only source of the app.
+          # directory — current and retained prior versions alike, so
+          # every retained version is installable everywhere. Prior
+          # first: the fresh build wins on a same-version collision. On a
+          # client-v* release there is no fresh build (staging/luci-apk
+          # is empty), and the prior merge above — which always includes
+          # the newest v* app release — is the only source of the app.
           for d in staging/releases/25.12.5/packages/*/trusttunnel/; do
             for f in staging/prior-apk/luci-app-trusttunnel-[0-9]*.apk \
                      staging/prior-apk/luci-app-trusttunnel-diagnostics-[0-9]*.apk \
@@ -955,12 +984,12 @@ jobs:
             cp "$f" "staging/releases/22.03.7/packages/$arch/trusttunnel/"
           done
           # The noarch LuCI app packages land in every feed directory —
-          # current and prior versions alike, so the whole version
-          # history is installable everywhere. The feed key travels with
+          # current and retained prior versions alike, so every retained
+          # version is installable everywhere. The feed key travels with
           # every feed: install.sh fetches it from the feed directory. On
           # a client-v* release there is no fresh build (staging/luci-ipk
-          # is empty), and the prior merge above is the only source of
-          # the app.
+          # is empty), and the prior merge above — which always includes
+          # the newest v* app release — is the only source of the app.
           for d in staging/releases/22.03.7/packages/*/trusttunnel/; do
             for f in staging/prior-opkg/luci-app-trusttunnel_[0-9]*.ipk \
                      staging/prior-opkg/luci-app-trusttunnel-diagnostics_[0-9]*.ipk \
@@ -1020,6 +1049,25 @@ jobs:
             sh -c 'for d in /repo/*/*/; do [ -n "$(ls "$d"/*.ipk 2>/dev/null)" ] || continue; (cd "$d" && usign -S -s /opkg.sec -m Packages -x Packages.sig) || exit 1; done'
           find staging/releases/22.03.7 -name Packages.sig
 
+      # The 1 GB Pages limit is hard: fail here, before the release
+      # upload and the deploy, instead of publishing a site that Pages
+      # will reject. The package tree is the bulk of the site. The
+      # client-version count catches a selector regression that would
+      # merge more releases than the cap.
+      - name: Check the feed size and retention
+        run: |
+          tree_mb="$(du -sm staging/releases | cut -f1)"
+          if [ "$tree_mb" -gt "$TT_FEED_MAX_MB" ]; then
+            echo "::error::the feed tree is ${tree_mb} MB, over the ${TT_FEED_MAX_MB} MB guard (the Pages limit is 1 GB)"
+            exit 1
+          fi
+          versions="$(find staging/releases/25.12.5/packages/x86_64/trusttunnel -name 'trusttunnel-client-*.apk' | wc -l | tr -d ' ')"
+          if [ "$versions" -gt "$TT_FEED_KEEP_RELEASES" ]; then
+            echo "::error::the apk feed carries ${versions} client versions, over the ${TT_FEED_KEEP_RELEASES}-release retention cap"
+            exit 1
+          fi
+          echo "feed tree: ${tree_mb} MB, ${versions} apk client versions"
+
       # The verification installs mirror install.sh's repository setup
       # exactly (key placement, repository entry, feed line), so a green
       # run proves the published repositories install with the installer's
@@ -1041,12 +1089,13 @@ jobs:
           echo "client_version=$client_version" >> "$GITHUB_OUTPUT"
           echo "client_release=$client_release" >> "$GITHUB_OUTPUT"
 
-      # The pinning contract: the repositories keep every released client
-      # version, so a router can pin an older one. Find the newest
-      # version in the x86_64 feeds that is not the one this build ships;
-      # the verification steps below install exactly that version when it
-      # exists. The first release ever has no older version, and the
-      # checks report a skip.
+      # The pinning contract: the repositories keep the newest client
+      # versions within the retention cap, so a router can pin an older
+      # retained one. Find the newest version in the x86_64 feeds that is
+      # not the one this build ships; the verification steps below
+      # install exactly that version when it exists. A feed with only one
+      # retained client version has no older version, and the checks
+      # report a skip.
       - name: Find an older client version to pin
         id: clientpin
         env:
@@ -1286,7 +1335,7 @@ jobs:
       # packages.adb, opkg appends /Packages.gz to the feed URL). The
       # levels with content carry it directly: the tree page lists the
       # architectures (linking straight to their feed pages), the feed
-      # pages list their files. The two structural levels in between
+      # pages list their retained files. The two structural levels in between
       # (packages/ and packages/<arch>/) hold only a one-line redirect
       # stub, so browsing stays at three clicks without any URL 404ing.
       - name: Assemble the Pages site
@@ -1308,8 +1357,10 @@ jobs:
 
           cp repo-site/README.md site/README.md
           # The ref name lands in the tag slot as-is: on a tag push it is
-          # the tag, on a branch dispatch it is the branch name.
-          sed -i "s/__TAG__/$GITHUB_REF_NAME/g" site/README.md
+          # the tag, on a branch dispatch it is the branch name. The keep
+          # count lands in the retention note, so the template and the
+          # workflow constant cannot drift apart.
+          sed -i -e "s/__TAG__/$GITHUB_REF_NAME/g" -e "s/__KEEP__/$TT_FEED_KEEP_RELEASES/g" site/README.md
 
           # The releases index lists the assembled release trees —
           # generated from the directories themselves, so there is no
@@ -1321,7 +1372,7 @@ jobs:
           # r swallows the rest of its line: file read and delete must
           # sit on separate lines inside the braces (see the __FILES__
           # substitution below).
-          sed "/__RELEASE_LIST__/{
+          sed -e "s/__KEEP__/$TT_FEED_KEEP_RELEASES/g" -e "/__RELEASE_LIST__/{
             r $release_list
             d
           }" repo-site/releases-index.md > site/releases/index.md
@@ -1342,7 +1393,7 @@ jobs:
               arch="$(basename "$d")"
               printf '%s\n' "- [$arch](packages/$arch/trusttunnel/)" >> "$arch_list"
             done
-            sed -e "s/__TREE__/$tree/g" -e "/__ARCH_LIST__/{
+            sed -e "s/__TREE__/$tree/g" -e "s/__KEEP__/$TT_FEED_KEEP_RELEASES/g" -e "/__ARCH_LIST__/{
               r $arch_list
               d
             }" repo-site/release-index.md > "$t/index.md"
@@ -1375,7 +1426,7 @@ jobs:
                 # name: a "; d" after it would be swallowed and the brace
                 # would never close. The file read and the delete must sit
                 # on separate lines inside the braces.
-                sed -e "s/__TREE__/$tree/g" -e "s/__ARCH__/$arch/g" -e "/__FILES__/{
+                sed -e "s/__TREE__/$tree/g" -e "s/__ARCH__/$arch/g" -e "s/__KEEP__/$TT_FEED_KEEP_RELEASES/g" -e "/__FILES__/{
                   r $files
                   d
                 }" repo-site/packages-feed-index.md > "$f/index.md"

@@ -43,3 +43,7 @@ most of these checks.
   Save & Apply updates the applied state only after it regenerates the
   client configuration. When the interface and the applied state
   diverge, the service log shows where the apply failed.
+- **A pinned version is not in the feed.** Each feed keeps the newest
+  three releases, because the published site has a hard 1 GB limit. An
+  older version is still on its GitHub release. Download the `.apk` or
+  `.ipk` from there and install it locally.

@@ -52,7 +52,8 @@ user-facing description.
   The router scripts must stay POSIX `/bin/sh` (busybox). Five CPU families
   are supported.
 - **Scale/Scope**: one router per installation. The signed repositories
-  keep every released version installable.
+  keep the last few released versions installable. Older versions stay on
+  their GitHub releases.
 
 ## Project Structure
 
@@ -70,7 +71,7 @@ user-facing description.
 │   ├── test_*.sh               # the suite's tests
 │   ├── fixtures/               # records fixtures and the schema key list
 │   ├── tools/                  # schema key regeneration helper
-│   ├── release/                # client packager image and package script
+│   ├── release/                # client packager image, script and feed selector
 │   ├── license-clean/          # upstream-blob license gate
 │   ├── backend/                # dockerized backend contract test and goldens
 │   ├── gui/                    # Playwright suite, stub server and dev loop
@@ -944,10 +945,19 @@ mis-triggered run fails before any SDK work starts.
   PR already ran the suite against this exact tree via
   `integration.yml`), and the publish-repo verification below installs
   the new client against the repositories' current app.
-- `publish-repo` — downloads the artifacts plus every prior release's
-  packages via `gh release download` (only the current package set is
-  merged: the early `-lite` releases are filtered out, and an ipk-less
-  first release is skipped, not failed),
+- `publish-repo` — downloads the artifacts plus the retained prior
+  releases' packages via `gh release download` (only the current package
+  set is merged: the early `-lite` releases are filtered out, and an
+  ipk-less first release is skipped, not failed). The published site has
+  a hard 1 GB limit, so the feed keeps only the newest
+  `TT_FEED_KEEP_RELEASES` releases (3 by default, the 3-5 range is the
+  supported one) instead of every release ever published.
+  `tests/release/select-releases.sh` picks the tags to download: the
+  newest keep-1 prior releases plus the current release, and always the
+  newest `v*` app release when the current release is not a `v*` one.
+  The app-only release contributes its app/runtime packages only, so its
+  client does not consume a retention slot. A feed with only one
+  retained client version skips the pin verification. It then
   assembles:
     - per-arch signed repositories in the official OpenWrt layout —
       `releases/<version>/packages/<arch>/trusttunnel/` on the site, one
@@ -958,21 +968,23 @@ mis-triggered run fails before any SDK work starts.
       install.sh), each holding per-arch feed directories with the apk
       index (`apk mkndx --allow-untrusted` + `apk adbsign` with
       `secrets.TT_APK_SIGN_KEY`) or the opkg index, the public keys and
-      every released version of the packages. Cumulative: prior client
-      packages of every version are placed by their `-<arch>` asset suffix
-      (apk) or their `_<arch>` name segment (ipk), and prior noarch LuCI
-      packages land in every feed dir, so every released version stays
-      installable — pinning or downgrading an older client stays possible.
-      The package managers install the highest version unless a router
-      pins one (apk: `apk add trusttunnel-client=<ver>-r<rel>`. opkg has
-      no `pkg=version` CLI syntax, so pinning means installing the
+      the retained versions of the packages. Retained: prior client
+      packages are placed by their `-<arch>` asset suffix (apk) or their
+      `_<arch>` name segment (ipk), and prior noarch LuCI packages land
+      in every feed dir, so every retained version stays installable —
+      pinning or downgrading an older retained client stays possible. A
+      selector bug that merges too much fails the 900 MB size guard and
+      the client-version count guard before the deploy. The package
+      managers install the highest version unless a router pins one
+      (apk: `apk add trusttunnel-client=<ver>-r<rel>`. opkg has no
+      `pkg=version` CLI syntax, so pinning means installing the
       versioned ipk from the feed),
     - per-arch opkg feeds (`ipkg-make-index.sh` fetched from openwrt-22.03,
       run once per feed directory, manifest fields stripped, gzip,
       `usign -S` with `secrets.TT_OPKG_SIGN_KEY`. The signature covers the
       UNCOMPRESSED `Packages`). The two-empty-line padding works around
-      usign's SHA-512 size bug — keep it. The feeds index the prior ipks
-      too (every version kept). The arch/version derivation from
+      usign's SHA-512 size bug — keep it. The feeds index the retained
+      prior ipks too. The arch/version derivation from
       the ipk file names is shared with the integration harness
       (`tests/integration/ipk-arch.sh`, sourced by both) and pinned by the
       harness's `archparse` stage — the arch names contain underscores, and
@@ -1004,10 +1016,10 @@ mis-triggered run fails before any SDK work starts.
 
 On a `client-v*` tag the pipeline takes the client-only path. `build`
 and `verify-integration` are skipped, `package-client` runs (and its
-version assertion), and `publish-repo` assembles the SAME cumulative
-trees with the app packages merged in from the prior releases (there is
-no fresh app build to place), verifies the new client against the
-current app, uploads a `client-vX.Y.Z` release and redeploys the site.
+version assertion), and `publish-repo` assembles the same capped trees,
+always merging the newest `v*` app release (there is no fresh app build
+to place), verifies the new client against the current app, uploads a
+`client-vX.Y.Z` release and redeploys the site.
 `publish-repo` gates on `!failure()` instead of the implicit
 `success()` so the skipped jobs do not block it, while any real failure
 still does. Routers pick the new client up on the next `apk upgrade` /
@@ -1054,7 +1066,9 @@ master by the workflow token, because the updater fast-forwards master
 instead of opening a pull request.
 
 Repositories are served from the Pages site, not from release assets.
-Release assets are per-tag snapshots, while the repositories accumulate
-every prior release (the "keep every prior release installable"
-contract). Pages serves the files byte-identically, which the package
-managers rely on. No branch ever holds packages.
+Release assets are per-tag snapshots of every release, while the
+repositories keep only the newest `TT_FEED_KEEP_RELEASES` releases (the
+"last few releases installable" contract). An older version is still
+downloadable from its own release, but it is not in the feed. Pages
+serves the files byte-identically, which the package managers rely on.
+No branch ever holds packages.
