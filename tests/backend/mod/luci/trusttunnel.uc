@@ -58,6 +58,23 @@ function secret_file(prefix, data) {
 	return f;
 }
 
+// The command that runs the vendor setup wizard, or null when no client
+// binary provides one. Up to vendor 1.3.0 the wizard shipped as a separate
+// `setup_wizard` binary; it now lives in the main client binary as
+// `trusttunnel_client --setup-wizard` (the option must come first). Prefer
+// the standalone binary while it is present, so an app upgrade that lands
+// before the client package upgrade keeps the config import working.
+function wizard_cmd() {
+	let standalone = '/opt/trusttunnel_client/setup_wizard';
+
+	if (access(standalone) != null)
+		return standalone;
+	if (access(CLIENT) != null)
+		return CLIENT + ' --setup-wizard';
+
+	return null;
+}
+
 // Read the UCI value at the given dotted path. The output is trimmed.
 function uci_value(path) {
 	return trim(run('uci -q get ' + shell_quote(path), true).out);
@@ -337,16 +354,19 @@ return {
 			}
 		},
 
-		// What is installed, for the Versions tab on the Settings page.
-		// The package versions come from the package manager (apk on
-		// 25.12+, opkg on 22.03-24.10; the other command does not exist
-		// there), the client binary version from the binary itself. A
-		// package that is not installed (or a missing binary) reports
+		// What is installed, for the Versions page. The package versions
+		// come from the package manager (apk on 25.12+, opkg on 22.03-
+		// 24.10; the other command does not exist there), the client
+		// binary version from the binary itself. The runtime package
+		// (trusttunnel) is the service the app is a frontend for, so a
+		// headless install reports it and not the app; the diagnostics
+		// package is the optional add-on, null when it is not installed.
+		// A package that is not installed (or a missing binary) reports
 		// null, never an error. Nothing here touches the network.
 		versions: {
 			args: { },
 			call: function() {
-				let res = { package: null, client_package: null, client: null };
+				let res = { package: null, client_package: null, client: null, runtime_package: null, diagnostics_package: null };
 
 				let apk = run('apk list -I luci-app-trusttunnel', true);
 				if (apk.code == 0) {
@@ -372,6 +392,32 @@ return {
 					let m = match(opkg.out, /Version: ([^ \t\n]+)/);
 					if (m)
 						res.client_package = m[1];
+				}
+
+				apk = run('apk list -I trusttunnel', true);
+				if (apk.code == 0) {
+					let m = match(apk.out, /trusttunnel-([^ \t\n]+)/);
+					if (m)
+						res.runtime_package = m[1];
+				}
+				if (res.runtime_package == null) {
+					let opkg = run('opkg info trusttunnel', true);
+					let m = match(opkg.out, /Version: ([^ \t\n]+)/);
+					if (m)
+						res.runtime_package = m[1];
+				}
+
+				apk = run('apk list -I luci-app-trusttunnel-diagnostics', true);
+				if (apk.code == 0) {
+					let m = match(apk.out, /luci-app-trusttunnel-diagnostics-([^ \t\n]+)/);
+					if (m)
+						res.diagnostics_package = m[1];
+				}
+				if (res.diagnostics_package == null) {
+					let opkg = run('opkg info luci-app-trusttunnel-diagnostics', true);
+					let m = match(opkg.out, /Version: ([^ \t\n]+)/);
+					if (m)
+						res.diagnostics_package = m[1];
 				}
 
 				let cv = run(CLIENT + ' --version', true);
@@ -1047,19 +1093,21 @@ return {
 				if (!length(trim(text)))
 					return { error: 'the configuration text is empty' };
 
-				if (access('/opt/trusttunnel_client/setup_wizard') == null)
-					return { error: 'setup_wizard is missing; reinstall the trusttunnel-client package' };
+				let wizard = wizard_cmd();
+
+				if (wizard == null)
+					return { error: 'the setup wizard is missing; reinstall the trusttunnel-client package' };
 
 				let settings = scratch_path('wizard');
 				let input = null;
 				let r;
 
 				if (match(text, /^tt:\/\//)) {
-					r = run('/opt/trusttunnel_client/setup_wizard --mode non-interactive --deeplink ' +
+					r = run(wizard + ' --mode non-interactive --deeplink ' +
 						shell_quote(text) + ' --settings ' + shell_quote(settings));
 				} else {
 					input = secret_file('config', text);
-					r = run('/opt/trusttunnel_client/setup_wizard --mode non-interactive --endpoint_config ' +
+					r = run(wizard + ' --mode non-interactive --endpoint_config ' +
 						shell_quote(input) + ' --settings ' + shell_quote(settings));
 				}
 
@@ -1086,7 +1134,7 @@ return {
 						if (length(trim(line)))
 							push(msg, trim(line));
 					}
-					return { error: length(msg) ? join(' ', msg) : 'setup_wizard exited with an error' };
+					return { error: length(msg) ? join(' ', msg) : 'the setup wizard exited with an error' };
 				}
 
 				// Every [endpoint] field the server can hand out is parsed
