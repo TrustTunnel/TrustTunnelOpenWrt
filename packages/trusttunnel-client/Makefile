@@ -21,7 +21,7 @@ PKG_NAME:=trusttunnel-client
 # The version is the VENDOR release, tracked here explicitly. On a vendor
 # release, bump it together with the per-family PKG_HASH values below (the
 # release API publishes the digests of every asset).
-PKG_VERSION:=1.1.12
+PKG_VERSION:=1.3.0
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=TrustTunnelOpenWrt contributors
@@ -61,11 +61,11 @@ PKG_SOURCE_URL := https://github.com/TrustTunnel/TrustTunnelClient/releases/down
 # and verified locally against the downloaded files. Nested ifs (not
 # if-chains with trailing continuations): a trailing space in PKG_HASH
 # makes download.pl reject the checksum as unrecognized.
-PKG_HASH := $(if $(filter x86_64,$(VENDOR_ARCH)),75b7df59351e26462487464de5f3462153e00195f2d40677872fb93a5b44c488, \
-	$(if $(filter aarch64,$(VENDOR_ARCH)),10402be7e715f35380e8bcf67e2d8f2ceb9fad81eef8274a472e3a085a0d5cc1, \
-	$(if $(filter armv7,$(VENDOR_ARCH)),51b289284d0c375bcf27207fd868c3ee676128a62dd2ce64c89cc914b2039895, \
-	$(if $(filter mips,$(VENDOR_ARCH)),89c1d038bc16e4056aa13a6c0d029db006ac2e2e89ea47f330580c04bd83361d, \
-	$(if $(filter mipsel,$(VENDOR_ARCH)),aaa2d8dc0da0226427349c47d39e40ccaf5fd255685d3ab6b4f3726d9a91aea6,)))))
+PKG_HASH := $(if $(filter x86_64,$(VENDOR_ARCH)),99e764bb2c080f7a60c441b51ad75fa7ec00e6c8a80afe36030af37201ba32f7, \
+	$(if $(filter aarch64,$(VENDOR_ARCH)),837ec64520d546cdf8e7a327614589f64dc6c4f30e408e3788de7bfaef05b52b, \
+	$(if $(filter armv7,$(VENDOR_ARCH)),19a0c479df4b2bce0ea3ea09777fc78be2918d0f7e8360279e1eee543284ac01, \
+	$(if $(filter mips,$(VENDOR_ARCH)),3c2526425bfd8ce33278e43edb7910a3e0e7c45ebec421eed01c1f999d5501bc, \
+	$(if $(filter mipsel,$(VENDOR_ARCH)),f80a998d49e978e68afbe622a5faea52aa7d8ff847f960d56a2e9b2a98918635,)))))
 
 # The archive's single top-level directory is named after the SOURCE
 # (trusttunnel_client-v$(PKG_VERSION)-linux-$(VENDOR_ARCH)), not after the
