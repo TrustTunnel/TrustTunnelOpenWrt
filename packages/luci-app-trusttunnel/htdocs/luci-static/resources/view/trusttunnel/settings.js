@@ -151,7 +151,7 @@ return view.extend({
 		// below does not need a `this`.
 		var target = section_id || this.activeServerSection();
 
-		// import_config hands the text to the vendor's setup_wizard binary
+		// import_config hands the text to the vendor client's setup wizard
 		// and parses its output, which takes a moment: while it runs, the
 		// Import button is disabled and shows a spinner, so a slow answer
 		// does not look like a dead click (nor can it double-submit).

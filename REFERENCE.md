@@ -21,7 +21,7 @@ luci-app-trusttunnel-diagnostics  (optional)
 | --- | --- | --- |
 | `luci-app-trusttunnel` | yes | the LuCI pages (Status, Settings, Client log and Versions), the rpcd backend, the ACL and the menu entry |
 | `trusttunnel` | yes | the runtime: the procd service, the routing helper, the records helpers, the default UCI config, the uci-defaults script and the hotplug hook |
-| `trusttunnel-client` | yes | the vendor client binaries (`trusttunnel_client` and `setup_wizard`) in `/opt/trusttunnel_client` |
+| `trusttunnel-client` | yes | the vendor client binary (`trusttunnel_client`) in `/opt/trusttunnel_client` |
 | `luci-app-trusttunnel-diagnostics` | no | the Diagnostics and Tools pages |
 
 Each package depends on the packages below it in the tree. A router that
@@ -209,8 +209,7 @@ an IP address, an `IP:port` pair, or a CIDR range.
 
 - `/etc/config/trusttunnel` — your settings. The package declares the
   file as a conffile, so it survives package updates
-- `/opt/trusttunnel_client/` — the client binaries (`trusttunnel_client`
-  and `setup_wizard`)
+- `/opt/trusttunnel_client/` — the client binary (`trusttunnel_client`)
 - `/var/etc/trusttunnel/` — generated files (`settings.tsv`,
   `client.toml`, `endpoint.pem`, `device`, `tun_since`). The service
   overwrites them when it starts and when it applies settings. Never

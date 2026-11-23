@@ -182,9 +182,7 @@ if ! docker run --rm -v "$WORK:/fixtures" --entrypoint sh "$IMAGE" -c '
 		dir="/fixtures/vendor/$name"
 		mkdir -p "$dir"
 		printf "binary-%s\n" "$family" > "$dir/trusttunnel_client"
-		printf "wizard-%s\n" "$family" > "$dir/setup_wizard"
 		printf "sig-%s\n" "$family" > "$dir/trusttunnel_client.sig"
-		printf "sig-%s\n" "$family" > "$dir/setup_wizard.sig"
 		printf "license-%s\n" "$family" > "$dir/LICENSE"
 		tar -czf "/fixtures/vendor/$name.tar.gz" -C /fixtures/vendor "$name"
 		rm -rf "$dir"
@@ -288,10 +286,9 @@ while read -r pm arch; do
 	actual_files=$(cat "$WORK/meta/$name.files")
 	assert_eq "$expected_files" "$actual_files" "$pm $arch files"
 
-	for file in trusttunnel_client setup_wizard trusttunnel_client.sig setup_wizard.sig LICENSE; do
+	for file in trusttunnel_client trusttunnel_client.sig LICENSE; do
 		case "$file" in
 			trusttunnel_client) marker="binary-$family" ;;
-			setup_wizard) marker="wizard-$family" ;;
 			*.sig) marker="sig-$family" ;;
 			LICENSE) marker="license-$family" ;;
 		esac

@@ -58,6 +58,23 @@ function secret_file(prefix, data) {
 	return f;
 }
 
+// The command that runs the vendor setup wizard, or null when no client
+// binary provides one. Up to vendor 1.3.0 the wizard shipped as a separate
+// `setup_wizard` binary; it now lives in the main client binary as
+// `trusttunnel_client --setup-wizard` (the option must come first). Prefer
+// the standalone binary while it is present, so an app upgrade that lands
+// before the client package upgrade keeps the config import working.
+function wizard_cmd() {
+	let standalone = '/opt/trusttunnel_client/setup_wizard';
+
+	if (access(standalone) != null)
+		return standalone;
+	if (access(CLIENT) != null)
+		return CLIENT + ' --setup-wizard';
+
+	return null;
+}
+
 // Read the UCI value at the given dotted path. The output is trimmed.
 function uci_value(path) {
 	return trim(run('uci -q get ' + shell_quote(path), true).out);
@@ -1076,19 +1093,21 @@ return {
 				if (!length(trim(text)))
 					return { error: 'the configuration text is empty' };
 
-				if (access('/opt/trusttunnel_client/setup_wizard') == null)
-					return { error: 'setup_wizard is missing; reinstall the trusttunnel-client package' };
+				let wizard = wizard_cmd();
+
+				if (wizard == null)
+					return { error: 'the setup wizard is missing; reinstall the trusttunnel-client package' };
 
 				let settings = scratch_path('wizard');
 				let input = null;
 				let r;
 
 				if (match(text, /^tt:\/\//)) {
-					r = run('/opt/trusttunnel_client/setup_wizard --mode non-interactive --deeplink ' +
+					r = run(wizard + ' --mode non-interactive --deeplink ' +
 						shell_quote(text) + ' --settings ' + shell_quote(settings));
 				} else {
 					input = secret_file('config', text);
-					r = run('/opt/trusttunnel_client/setup_wizard --mode non-interactive --endpoint_config ' +
+					r = run(wizard + ' --mode non-interactive --endpoint_config ' +
 						shell_quote(input) + ' --settings ' + shell_quote(settings));
 				}
 
@@ -1115,7 +1134,7 @@ return {
 						if (length(trim(line)))
 							push(msg, trim(line));
 					}
-					return { error: length(msg) ? join(' ', msg) : 'setup_wizard exited with an error' };
+					return { error: length(msg) ? join(' ', msg) : 'the setup wizard exited with an error' };
 				}
 
 				// Every [endpoint] field the server can hand out is parsed

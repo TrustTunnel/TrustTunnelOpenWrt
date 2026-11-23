@@ -109,15 +109,16 @@ endef
 # to fetch the same files with the vendor's own installer).
 define Package/trusttunnel-client/install
 	$(INSTALL_DIR) $(1)/opt/trusttunnel_client
+	# Since vendor 1.3.0 the setup wizard is part of the main binary
+	# (`trusttunnel_client --setup-wizard`) instead of a second binary, so
+	# the package carries one executable only.
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/trusttunnel_client $(1)/opt/trusttunnel_client/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/setup_wizard $(1)/opt/trusttunnel_client/
-	# The .sig files and the LICENSE travel with the binaries: the vendor
+	# The .sig file and the LICENSE travel with the binary: the vendor
 	# signs every release (see the vendor's VERIFY_RELEASES.md) and the
 	# public key is published on keys.openpgp.org, so a user can verify
-	# what they run. PKG_HASH already pins the tarball; the signatures are
+	# what they run. PKG_HASH already pins the tarball; the signature is
 	# carried for transparency, not relied upon.
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/trusttunnel_client.sig $(1)/opt/trusttunnel_client/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/setup_wizard.sig $(1)/opt/trusttunnel_client/
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/LICENSE $(1)/opt/trusttunnel_client/
 endef
 

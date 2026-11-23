@@ -224,6 +224,23 @@ EOF
 chmod +x /usr/bin/curl /usr/bin/ip /usr/bin/logread' >/dev/null 2>&1
 check_goldens "$LAB_HEALTHY" "$BASE/goldens/healthy"
 
+# --- Phase B2: the wizard runs from the main client binary ----------------
+# Vendor 1.3.0 removed the standalone setup_wizard binary and folded the
+# wizard into `trusttunnel_client --setup-wizard`. With the standalone
+# stub gone, the two import results must still match the healthy goldens:
+# the backend has to fall back to the main binary instead of reporting the
+# wizard as missing. This is the upgrade path a router takes when the app
+# updates before the client package.
+docker exec "$LAB_HEALTHY" rm -f /opt/trusttunnel_client/setup_wizard >/dev/null 2>&1
+for name in import_configtextsampleconf import_configtextttdeeplink; do
+	call=$(golden_call "$name")
+	method=${call%%	*}
+	args=${call#*	}
+	assert_eq "$(cat "$BASE/goldens/healthy/$name.json")" \
+		"$(run_call "$LAB_HEALTHY" "$method" "$args")" \
+		"import via the main client binary ($name)"
+done
+
 # --- Phase C: the service stopped (routing state absent, expected) -------
 # The kernel checks gate their fail/skip verdict on `running`: with the
 # service stopped the absent routing state is expected and must report

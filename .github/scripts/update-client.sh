@@ -14,7 +14,7 @@
 # Everything else in both files is preserved byte-for-byte. The script
 # never trusts the release API alone: it downloads every family tarball,
 # compares its SHA-256 with the digest the API publishes, and checks the
-# archive layout the packager needs (the top-level directory and the five
+# archive layout the packager needs (the top-level directory and the three
 # installed files). A release that fails any check changes nothing.
 #
 # The script reads the current hashes through the same packager parser
@@ -213,7 +213,11 @@ for family in $families; do
 	top="trusttunnel_client-v${version}-linux-${family}"
 	tar -tzf "$tarball" > "$work/list-$family" 2>/dev/null \
 		|| die "cannot read $name"
-	for member in trusttunnel_client setup_wizard trusttunnel_client.sig setup_wizard.sig LICENSE; do
+	# Vendor 1.3.0 folded the setup wizard into the main binary
+	# (`trusttunnel_client --setup-wizard`) and stopped shipping the
+	# standalone `setup_wizard`/`setup_wizard.sig`. The layout check
+	# follows the package's install list, so it must not require them.
+	for member in trusttunnel_client trusttunnel_client.sig LICENSE; do
 		grep -qx "$top/$member" "$work/list-$family" \
 			|| die "$name has no $top/$member"
 	done

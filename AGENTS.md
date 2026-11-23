@@ -453,9 +453,12 @@ The backend exposes `luci.trusttunnel` RPC methods. The ACL grants read on
   → network, each check `{group, label, status, detail, hint}`, plus
   counts and an overall verdict.
 - `import_config` — feeds server config text or a `tt://` link to the
-  vendor's `setup_wizard`, parses the produced settings and returns the
-  endpoint fields. The backend writes secrets with `write_secret_tmp`
-  (mode 0600).
+  vendor client's setup wizard, parses the produced settings and returns
+  the endpoint fields. The wizard runs as the standalone `setup_wizard`
+  binary when a pre-1.3.0 client package still provides it, and as
+  `trusttunnel_client --setup-wizard` on 1.3.0+, where the vendor folded
+  it into the main binary. The backend writes secrets with
+  `write_secret_tmp` (mode 0600).
 
 Imports note: the backend imports `fs` and `math` module functions
 plus the shared `trusttunnel` module (constants + records parser, at
@@ -818,8 +821,10 @@ dependencies keep the package set small and predictable.
   evaluates the Makefile without target config.
 - `PKG_BUILD_DIR` is overridden BEFORE `package.mk` is included (the
   tarball's top-level directory is named after the source).
-- Installs `trusttunnel_client`, `setup_wizard`, their `.sig` files and
-  `LICENSE` into `/opt/trusttunnel_client` (path hardcoded elsewhere).
+- Installs `trusttunnel_client`, its `.sig` file and `LICENSE` into
+  `/opt/trusttunnel_client` (path hardcoded elsewhere). The setup wizard
+  is not a separate binary: since vendor 1.3.0 it runs as
+  `trusttunnel_client --setup-wizard`.
 - The vendor ships one tarball per CPU family but the package is built per
   OpenWrt subtarget arch — apk/opkg match arch byte-exactly.
 
