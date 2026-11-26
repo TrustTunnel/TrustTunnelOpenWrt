@@ -14,7 +14,7 @@ PKG_NAME:=trusttunnel
 # a build on tag vX.Y.Z ships X.Y.Z. The fallback below applies only when
 # no app tag is reachable; keep it equal to the last released version.
 # The tag match excludes `client-v*` tags, which share this repository.
-PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.0))
+PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.1))
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Ilia Zhirov <i.zhirov@adguard.com>

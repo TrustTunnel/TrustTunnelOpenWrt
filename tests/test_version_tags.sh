@@ -100,6 +100,6 @@ assert_version 1.0.1 "an app tag wins over a higher client tag on the same commi
 TEST_REPO="$TT_TEST_TMP/repo-no-app-tag"
 new_repo "$TEST_REPO"
 tag client-v9.9.9
-assert_version 1.0.0 "client tags alone fall back to the last released version"
+assert_version 1.0.1 "client tags alone fall back to the last released version"
 
 tt_test_summary
