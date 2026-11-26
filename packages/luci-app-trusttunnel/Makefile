@@ -18,7 +18,7 @@ PKG_NAME:=luci-app-trusttunnel
 # in the same repository. Without --match, a build after a client release
 # would pick that tag and call itself `client-vX.Y.Z` instead of the app
 # version (or the fallback), which breaks every feed that consumes it.
-PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.0))
+PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.1))
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Ilia Zhirov <i.zhirov@adguard.com>

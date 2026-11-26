@@ -9,7 +9,7 @@ PKG_NAME:=luci-app-trusttunnel-diagnostics
 # released together with the app (the same tag carries both), so it can
 # never be ahead of or behind the core. The tag match keeps `client-v*`
 # tags out of the version, exactly as for the core app.
-PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.0))
+PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.1))
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Ilia Zhirov <i.zhirov@adguard.com>

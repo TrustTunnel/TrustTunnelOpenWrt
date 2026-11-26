@@ -740,7 +740,7 @@ The rules:
 - Pin the vendor tarball explicitly: `PKG_VERSION` plus the per-family
   `PKG_HASH` values, bumped together from the vendor's release API.
 - Keep the `PKG_VERSION` fallback in the app, runtime and diagnostics
-  Makefiles equal to the last released version (currently `1.0.0`). The
+  Makefiles equal to the last released version (currently `1.0.1`). The
   version derives from `v*` tags only (`git describe --match 'v[0-9]*'`):
   `client-v*` tags share the repository, and without the match a build
   after a client release would name the app after the client version.
@@ -793,7 +793,7 @@ dependencies keep the package set small and predictable.
 
 - `PKG_VERSION` comes from `git describe --tags --abbrev=0 --match
   'v[0-9]*'` (tag `vX.Y.Z` → version `X.Y.Z`), falling back to the last
-  released version (currently `1.0.0`). The match keeps `client-v*` tags
+  released version (currently `1.0.1`). The match keeps `client-v*` tags
   out of the app version. The fallback must track the latest release —
   the release workflow fails a tag build whose artifact does not carry
   the tag.
