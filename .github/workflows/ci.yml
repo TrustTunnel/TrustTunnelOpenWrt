@@ -157,6 +157,7 @@ jobs:
             .github/scripts/update-client.sh \
             tests/test_update_client.sh \
             tests/test_update_client_workflow.sh \
+            tests/test_version_tags.sh \
             tests/test_workflow_runtime.sh \
             tests/release/select-releases.sh \
             tests/install-harness.sh \

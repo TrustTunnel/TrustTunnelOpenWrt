@@ -9,11 +9,16 @@ PKG_NAME:=luci-app-trusttunnel
 # previous release (apk names read X.Y.Z-r1, the 22.03 luci.mk ignores
 # PKG_RELEASE for ipk versions). `git describe` reports the nearest
 # reachable tag, so a build on a tag carries exactly that version; the
-# fallback below applies only when no tag is reachable (local builds,
+# fallback below applies only when no app tag is reachable (local builds,
 # manual re-deploys, a feed without .git). Keep the fallback equal to
 # the last released version; release.yml fails a tag build whose artifact
 # does not carry the tag.
-PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.0))
+#
+# The tag match is deliberate: client releases use `client-vX.Y.Z` tags
+# in the same repository. Without --match, a build after a client release
+# would pick that tag and call itself `client-vX.Y.Z` instead of the app
+# version (or the fallback), which breaks every feed that consumes it.
+PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.0))
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Ilia Zhirov <i.zhirov@adguard.com>
