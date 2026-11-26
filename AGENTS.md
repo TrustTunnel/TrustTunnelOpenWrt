@@ -694,6 +694,14 @@ dependencies stay installed on purpose.
   automation branch, the integration wait, the tag, the release dispatch,
   the missing-release recovery, the fixture repair, and the absence of a
   repository secret.
+- **The version-tag test** (`tests/test_version_tags.sh`) runs the real
+  `PKG_VERSION` shell expression from the app, diagnostics and runtime
+  Makefiles in scratch git repositories. It pins that a nearer
+  `client-v*` tag never becomes the app version, that an app tag wins
+  when both tags sit on the same commit, and that the fallback applies
+  when no app tag exists. The failure is otherwise silent: a master
+  dispatch would build an app package that no feed can match, so a fix
+  in the app would never reach users.
 - **The view-contract gate** (`tests/view-contract.js`) cross-checks the
   views against the backend without a browser: every `rpc.declare` must
   name a registered method that the ACL grants and declare a subset of its
@@ -732,7 +740,10 @@ The rules:
 - Pin the vendor tarball explicitly: `PKG_VERSION` plus the per-family
   `PKG_HASH` values, bumped together from the vendor's release API.
 - Keep the `PKG_VERSION` fallback in the app, runtime and diagnostics
-  Makefiles equal to the last released version (currently `1.0.0`).
+  Makefiles equal to the last released version (currently `1.0.0`). The
+  version derives from `v*` tags only (`git describe --match 'v[0-9]*'`):
+  `client-v*` tags share the repository, and without the match a build
+  after a client release would name the app after the client version.
 - Prefer the OpenWrt base packages. The runtime depends only on
   `+trusttunnel-client +ip-full +nftables`. The app depends only on
   `+trusttunnel +luci-base +curl +ucode-mod-math`. Add a dependency only
@@ -757,10 +768,11 @@ dependencies keep the package set small and predictable.
   `luci-app-trusttunnel` hard-depends on it (and the diagnostics add-on
   on the app), so a headless router can run the tunnel with
   `trusttunnel` alone.
-- `PKG_VERSION` comes from the same `git describe --tags --abbrev=0`
-  mechanism as the app (tag `vX.Y.Z` → `X.Y.Z`, same fallback, must track
-  the last released version). The runtime releases with the app and can
-  never be ahead of or behind it.
+- `PKG_VERSION` comes from the same `git describe --tags --abbrev=0
+  --match 'v[0-9]*'` mechanism as the app (tag `vX.Y.Z` → `X.Y.Z`, same
+  fallback, must track the last released version). The match keeps
+  `client-v*` tags out of the runtime version. The runtime releases with
+  the app and can never be ahead of or behind it.
 - `DEPENDS:=+trusttunnel-client +ip-full +nftables`. **Do not add
   `kmod-tun` or `ca-bundle` here**: they belong on
   `trusttunnel-client`'s own DEPENDS and arrive transitively. **Do not
@@ -779,10 +791,12 @@ dependencies keep the package set small and predictable.
 
 #### `luci-app-trusttunnel/Makefile`
 
-- `PKG_VERSION` comes from `git describe --tags --abbrev=0` (tag `vX.Y.Z`
-  → version `X.Y.Z`), falling back to the last released version (currently
-  `1.0.0`). The fallback must track the latest release — the release
-  workflow fails a tag build whose artifact does not carry the tag.
+- `PKG_VERSION` comes from `git describe --tags --abbrev=0 --match
+  'v[0-9]*'` (tag `vX.Y.Z` → version `X.Y.Z`), falling back to the last
+  released version (currently `1.0.0`). The match keeps `client-v*` tags
+  out of the app version. The fallback must track the latest release —
+  the release workflow fails a tag build whose artifact does not carry
+  the tag.
 - `LUCI_DEPENDS:=+trusttunnel +luci-base +curl +ucode-mod-math`.
   **Do not add `trusttunnel-client`, `ip-full`, `nftables`, `kmod-tun` or
   `ca-bundle` here**: they belong on `trusttunnel`/`trusttunnel-client`
@@ -1029,6 +1043,10 @@ to place), verifies the new client against the current app, uploads a
 `success()` so the skipped jobs do not block it, while any real failure
 still does. Routers pick the new client up on the next `apk upgrade` /
 `opkg upgrade` — the app depends on `+trusttunnel-client` unversioned.
+A client-only release never publishes app changes. When the tree carries
+app changes that the newest `v*` release does not, cut a `v*` app release
+first. Otherwise the feed keeps serving the old app, and an app-side fix
+for a new client never reaches users.
 
 #### Scheduled client updater (`.github/workflows/update-client.yml`)
 

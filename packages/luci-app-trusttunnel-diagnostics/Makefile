@@ -7,8 +7,9 @@ PKG_NAME:=luci-app-trusttunnel-diagnostics
 # Same version mechanism as luci-app-trusttunnel: the release tag names
 # the version, the fallback tracks the last released one. The package is
 # released together with the app (the same tag carries both), so it can
-# never be ahead of or behind the core.
-PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.0))
+# never be ahead of or behind the core. The tag match keeps `client-v*`
+# tags out of the version, exactly as for the core app.
+PKG_VERSION:=$(strip $(shell v="$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"; [ -n "$$v" ] && printf '%s' "$$v" || printf '%s' 1.0.0))
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Ilia Zhirov <i.zhirov@adguard.com>
